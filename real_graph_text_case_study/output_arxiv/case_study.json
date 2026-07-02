@@ -1,0 +1,61 @@
+{
+  "dataset": "ogbn-arxiv (49993 text-bearing nodes)",
+  "num_vertices": 49993,
+  "num_edges_used_for_matching": 99053,
+  "encoder": "tfidf-svd",
+  "tau": 0.8,
+  "query": {
+    "qids": [
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5"
+    ],
+    "source_node_ids": [
+      "2949640503",
+      "2950598277",
+      "2125566184",
+      "2951382382",
+      "2950093758"
+    ],
+    "query_edges": [
+      [
+        "q1",
+        "q2"
+      ],
+      [
+        "q1",
+        "q3"
+      ],
+      [
+        "q2",
+        "q5"
+      ],
+      [
+        "q3",
+        "q4"
+      ]
+    ],
+    "query_texts": {
+      "q1": "paper about decoding, sc-ldpc, code, ensembles, binary, both, codes, complexity, design, latency, over, thresholds",
+      "q2": "paper about threshold, channels, over, transmission, also, binary, class, consider, coupling, ensemble, ensembles, memory",
+      "q3": "paper about codes, analysis, channels, ldpc, binary, messages, approximation, arbitrary, coset, designed, gaussian, including",
+      "q4": "paper about codes, ldpc, hybrid, condition, stability, advantages, analyse, analysis, asymptotic, asymptotically, been, behavior",
+      "q5": "paper about over, posteriori, belief, binary, case, maximum, propagation, transmission, area, channel, erasure, general"
+    },
+    "source_pair_avg_sim": 0.7609991133213043,
+    "source_centroid_min_sim": 0.868998110294342
+  },
+  "candidate_counts": {
+    "q1": 51,
+    "q2": 14,
+    "q3": 52,
+    "q4": 65,
+    "q5": 11
+  },
+  "matches_seen": 122,
+  "enumeration_capped": true,
+  "ground_truth_recovered": true,
+  "additional_disjoint_found": true
+}

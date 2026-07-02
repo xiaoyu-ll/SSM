@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+
+# datasets / large files
+dataset/
+datasets/
+real_graph_text_case_study/dataset/
+*.csv
+*.csv.gz
+*.tsv
+*.tsv.gz
+*.gz
+
+# outputs / results
+output/
+outputs/
+result/
+results/
+logs/
+*.log

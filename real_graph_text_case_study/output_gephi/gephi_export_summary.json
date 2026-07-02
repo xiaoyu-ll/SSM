@@ -1,0 +1,16 @@
+{
+  "all_matches_csv": "output_arxiv_all/all_matches.csv",
+  "query_file": "output_arxiv1/fixed_query.json",
+  "num_matches": 151,
+  "num_query_vertices": 5,
+  "num_query_edges": 5,
+  "matched_vertices": 16,
+  "selected_vertices_with_context": 129,
+  "exported_edges": 327,
+  "edge_csv": "output_gephi/gephi_edges.csv",
+  "node_csv": "output_gephi/gephi_nodes.csv",
+  "representative_A_match_id": 1,
+  "representative_B_match_id": 85,
+  "representative_A_min_similarity": 0.999999701976776,
+  "representative_B_min_similarity": 0.8665720224380493
+}

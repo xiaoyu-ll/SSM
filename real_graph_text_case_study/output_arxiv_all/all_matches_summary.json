@@ -1,0 +1,53 @@
+{
+  "dataset": "ogbn-arxiv (49993 text-bearing nodes)",
+  "num_vertices": 49993,
+  "num_edges_used_for_matching": 99053,
+  "encoder": "tfidf-svd",
+  "dim": 128,
+  "tau": 0.86,
+  "query_file": "output_arxiv1/fixed_query.json",
+  "query_edges": [
+    [
+      "q1",
+      "q2"
+    ],
+    [
+      "q1",
+      "q3"
+    ],
+    [
+      "q2",
+      "q3"
+    ],
+    [
+      "q3",
+      "q4"
+    ],
+    [
+      "q3",
+      "q5"
+    ]
+  ],
+  "candidate_counts": {
+    "q1": 6,
+    "q2": 13,
+    "q3": 11,
+    "q4": 5,
+    "q5": 13
+  },
+  "enumeration_order": [
+    "q4",
+    "q1",
+    "q3",
+    "q2",
+    "q5"
+  ],
+  "total_matches": 151,
+  "completed_without_limit": true,
+  "optional_limit": 0,
+  "ground_truth_count": 1,
+  "ground_truth_first_match_id": 1,
+  "elapsed_seconds": 0.0037877559661865234,
+  "all_matches_jsonl": "output_arxiv_all/all_matches.jsonl",
+  "all_matches_csv": "output_arxiv_all/all_matches.csv"
+}

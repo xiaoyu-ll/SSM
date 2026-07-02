@@ -1,0 +1,22 @@
+selected_data_vertices: 48079 141630 160984 205984 215662
+data_degrees: 8 24 10 8 8
+pairwise_cosine_among_query_vertices
+0,1,0.572648
+0,2,0.745267
+0,3,1
+0,4,1
+1,2,0.893642
+1,3,0.572648
+1,4,0.572648
+2,3,0.745267
+2,4,0.745267
+3,4,1
+
+files
+e10: q5_e10_vertices.csv q5_e10_edges.csv
+e9: q5_e9_vertices.csv q5_e9_edges.csv
+e8: q5_e8_vertices.csv q5_e8_edges.csv
+e7: q5_e7_vertices.csv q5_e7_edges.csv
+e6: q5_e6_vertices.csv q5_e6_edges.csv
+e5: q5_e5_vertices.csv q5_e5_edges.csv
+e4: q5_e4_vertices.csv q5_e4_edges.csv

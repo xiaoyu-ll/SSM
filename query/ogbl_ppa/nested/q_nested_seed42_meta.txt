@@ -1,0 +1,12 @@
+seed=42
+min_k=3
+max_k=10
+edge_mode=induced
+k=3,edges=2
+k=4,edges=3
+k=5,edges=4
+k=6,edges=6
+k=7,edges=8
+k=8,edges=10
+k=9,edges=13
+k=10,edges=16

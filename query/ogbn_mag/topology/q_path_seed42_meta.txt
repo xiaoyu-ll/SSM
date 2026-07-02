@@ -1,0 +1,5 @@
+topology=path
+query_nodes=6
+query_edges=5
+seed=42
+rep=0

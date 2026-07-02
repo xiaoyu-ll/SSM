@@ -1,0 +1,43 @@
+{
+  "qids": [
+    "q1",
+    "q2",
+    "q3",
+    "q4",
+    "q5"
+  ],
+  "source_node_ids": [
+    "2253806798",
+    "2772800855",
+    "2982834534",
+    "3006888650",
+    "2735253541"
+  ],
+  "query_edges": [
+    [
+      "q1",
+      "q2"
+    ],
+    [
+      "q1",
+      "q3"
+    ],
+    [
+      "q2",
+      "q4"
+    ],
+    [
+      "q2",
+      "q5"
+    ]
+  ],
+  "query_texts": {
+    "q1": "paper about text, dataset, images, recognition, detection, natural, analysis, annotations, classification, coco, coco-text, contains",
+    "q2": "paper about text, curve, detection, dataset, also, connection, further, images, named, only, proposed, rectangle",
+    "q3": "paper about textvqa, answer, task, text, images, prediction, approaches, classification, existing, iterative, modalities, multimodal",
+    "q4": "paper about text, context, segment, segments, detection, graph, pieces, puzzlenet, scene, according, challenging, combinations",
+    "q5": "paper about text, convolutional, detection, recognition, end-to-end, features, framework, images, networks, neural, only, performance"
+  },
+  "source_pair_avg_sim": 0.6507135242223739,
+  "source_centroid_min_sim": 0.7256349921226501
+}

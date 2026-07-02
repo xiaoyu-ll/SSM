@@ -1,0 +1,65 @@
+{
+  "dataset": "ogbn-arxiv (49993 text-bearing nodes)",
+  "num_vertices": 49993,
+  "num_edges_used_for_matching": 99053,
+  "encoder": "tfidf-svd",
+  "tau": 0.86,
+  "query": {
+    "qids": [
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5"
+    ],
+    "source_node_ids": [
+      "2950391633",
+      "2953064494",
+      "2949179446",
+      "2172248015",
+      "2952175429"
+    ],
+    "query_edges": [
+      [
+        "q1",
+        "q2"
+      ],
+      [
+        "q1",
+        "q3"
+      ],
+      [
+        "q2",
+        "q3"
+      ],
+      [
+        "q3",
+        "q4"
+      ],
+      [
+        "q3",
+        "q5"
+      ]
+    ],
+    "query_texts": {
+      "q1": "paper about gdof, interference, bounds, upper, regime, cooperation, gaussian, ld-irc, link, management, perspective, schemes",
+      "q2": "paper about interference, channel, cognitive, capacity, relay, result, strong, very, both, bound, classical, messages",
+      "q3": "paper about channel, interference, bound, deterministic, outer, capacity, cognitive, relay, channels, special, approximation, certain",
+      "q4": "paper about capacity, interference, relay, bounds, class, gaussian, bound, channels, coding, constant, cooperative, inner",
+      "q5": "paper about channel, capacity, channels, cognitive, inner, interference, outer, relay, both, bounds, ifc-cr, messages"
+    },
+    "source_pair_avg_sim": 0.8667535424232483,
+    "source_centroid_min_sim": 0.9141957759857178
+  },
+  "candidate_counts": {
+    "q1": 6,
+    "q2": 13,
+    "q3": 11,
+    "q4": 5,
+    "q5": 13
+  },
+  "matches_seen": 85,
+  "enumeration_capped": true,
+  "ground_truth_recovered": true,
+  "additional_disjoint_found": true
+}

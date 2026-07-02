@@ -1,0 +1,5 @@
+topology=dense
+query_nodes=6
+query_edges=9
+seed=42
+rep=0

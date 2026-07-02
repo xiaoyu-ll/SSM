@@ -1,0 +1,5 @@
+topology=cycle
+query_nodes=6
+query_edges=6
+seed=42
+rep=0

@@ -1,0 +1,6 @@
+numpy
+pandas
+scikit-learn
+ogb
+# Optional, only if you use --encoder sentence-transformers:
+# sentence-transformers
