@@ -68,11 +68,6 @@ static double peak_rss_mb() {
 #endif
 }
 
-static void print_memory(const string& tag) {
-    cout << "[Memory] " << tag << ": current RSS=" << current_rss_mb()
-         << " MB, peak RSS=" << peak_rss_mb() << " MB\n";
-}
-
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
     string cur;
@@ -450,9 +445,6 @@ public:
     vector<vector<int>> q_dist;
     vector<vector<double>> q_prox;
     vector<double> beta;
-    uint64_t proximity_queries = 0;
-    uint64_t beam_expansions = 0;
-
     NeMaVec(const Graph& data, const Graph& query, const Args& a) : G(data), Q(query), args(a), qn(query.n), gn(data.n) {
         if (G.dim != Q.dim) throw std::runtime_error("Feature dimensions do not match.");
         build_query_proximity();
@@ -522,7 +514,6 @@ public:
 
     double data_prox(int v, int z) {
         if (v == z) return 1.0;
-        proximity_queries++;
         vector<int> dist(gn, -1);
         std::queue<int> qu;
         dist[v] = 0;
@@ -701,7 +692,6 @@ public:
                     np.used.push_back(v);
                     np.cost += incremental_cost(u, v, p.mapping);
                     next.push_back(std::move(np));
-                    beam_expansions++;
                 }
             }
             if (next.empty()) break;
@@ -731,37 +721,16 @@ public:
         if (int(results.size()) > args.topk) results.resize(args.topk);
         return results;
     }
-
-    void print_profile() const {
-        cout << "\n========== NeMa-VEC Profile ==========" << "\n";
-        cout << "query_nodes          : " << qn << "\n";
-        cout << "data_nodes           : " << gn << "\n";
-        cout << "topk                 : " << args.topk << "\n";
-        cout << "candidate_limit      : " << args.candidate_limit << "\n";
-        cout << "beam_width           : " << args.beam_width << "\n";
-        cout << "nema_iters           : " << args.nema_iters << "\n";
-        cout << "hops                 : " << args.hops << "\n";
-        cout << "alpha                : " << args.alpha << "\n";
-        cout << "lambda               : " << args.lambda << "\n";
-        cout << "injective            : " << (args.injective ? 1 : 0) << "\n";
-        cout << "proximity_queries    : " << proximity_queries << "\n";
-        cout << "beam_expansions      : " << beam_expansions << "\n";
-        double avg_c = 0.0;
-        for (const auto& c : cand) avg_c += c.size();
-        cout << "avg_candidates       : " << (avg_c / std::max(1, qn)) << "\n";
-    }
 };
 
 int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         double t0 = now_sec();
-        print_memory("program start");
 
         cout << "Loading graph CSV ...\n";
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize, true);
         cout << "Data graph: n=" << G.n << " dim=" << G.dim << "\n";
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt_mapping;
@@ -793,12 +762,10 @@ int main(int argc, char** argv) {
         }
 
         double t1 = now_sec();
-        print_memory("after query preparation");
 
         cout << "Initializing NeMa-VEC ...\n";
         NeMaVec matcher(G, Q, args);
         double t2 = now_sec();
-        print_memory("after matcher initialization and inference");
 
         cout << "Running NeMa-VEC top-k refinement ...\n";
         vector<Result> results = matcher.run();
@@ -823,12 +790,7 @@ int main(int argc, char** argv) {
             sf << "\n";
         }
 
-        print_memory("after matching");
-        matcher.print_profile();
-        uint64_t exact_hits = 0;
-        for (const auto& r : results) if (r.exact_valid) exact_hits++;
         cout << "\nReturned " << results.size() << " approximate match(es).\n";
-        cout << "Exact-valid hits under your definition: " << exact_hits << "\n";
         if (args.count_only) cout << "Output mode: count-only; no match file written.\n";
         else cout << "Matches written to: " << match_path << "\n";
         cout << "Scores written to: " << score_path << "\n";
