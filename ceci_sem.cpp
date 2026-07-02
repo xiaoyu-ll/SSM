@@ -67,10 +67,6 @@ static double peak_rss_mb() {
 #endif
 }
 
-static void print_memory(const string& tag) {
-    cout << "[Memory] " << tag << ": current RSS=" << current_rss_mb()
-         << " MB, peak RSS=" << peak_rss_mb() << " MB\n";
-}
 
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
@@ -256,28 +252,6 @@ static inline float dot_product(const vector<float>& a, const vector<float>& b) 
     return float(s);
 }
 
-struct Stats {
-    uint64_t complete_matches = 0;
-    uint64_t recursive_calls = 0;
-    uint64_t candidate_extensions = 0;
-    uint64_t structural_prunes = 0;
-    uint64_t injectivity_prunes = 0;
-    uint64_t edge_checks = 0;
-    uint64_t semantic_similarity_evals = 0;
-    uint64_t semantic_partial_prunes = 0;
-    uint64_t initial_degree_domain_values = 0;
-    uint64_t after_topdown_domain_values = 0;
-    uint64_t after_bottomup_domain_values = 0;
-    uint64_t after_nte_domain_values = 0;
-    uint64_t topdown_deletions = 0;
-    uint64_t bottomup_deletions = 0;
-    uint64_t nte_deletions = 0;
-    uint64_t cpi_tree_edge_entries = 0;
-    uint64_t cpi_tree_edge_lists = 0;
-    uint64_t core_vertices = 0;
-    uint64_t forest_vertices = 0;
-    uint64_t leaf_vertices = 0;
-};
 
 
 class CECISemanticPartial {
@@ -307,26 +281,6 @@ public:
 
     struct CECIStats {
         uint64_t complete_matches = 0;
-        uint64_t recursive_calls = 0;
-        uint64_t candidate_extensions = 0;
-        uint64_t injectivity_prunes = 0;
-        uint64_t structural_prunes = 0;
-        uint64_t edge_checks = 0;
-        uint64_t semantic_similarity_evals = 0;
-        uint64_t semantic_partial_prunes = 0;
-        uint64_t initial_structural_domain_values = 0;
-        uint64_t domain_values_after_bfs_filter = 0;
-        uint64_t domain_values_after_reverse_refine = 0;
-        uint64_t bfs_parent_deletions = 0;
-        uint64_t reverse_refine_deletions = 0;
-        uint64_t nte_support_deletions = 0;
-        uint64_t refine_iterations = 0;
-        uint64_t te_candidate_lists = 0;
-        uint64_t te_candidate_entries = 0;
-        uint64_t nte_candidate_lists = 0;
-        uint64_t nte_candidate_entries = 0;
-        uint64_t intersections = 0;
-        uint64_t root_pivots = 0;
     } stats;
 
     CECISemanticPartial(const Graph& data, const Graph& query, float tau_)
@@ -412,9 +366,7 @@ public:
                     mark[midx(u,v)] = 1;
                 }
             }
-            stats.initial_structural_domain_values += dom[u].size();
         }
-        stats.root_pivots = dom[root].size();
     }
 
     uint64_t domain_values() const {
@@ -452,11 +404,10 @@ public:
                 if (!mark[midx(u,v)]) continue;
                 bool ok = false;
                 for (int z:G.adj[v]) if (mark[midx(p,z)]) { ok=true; break; }
-                if (!ok && erase_mark(u,v)) stats.bfs_parent_deletions++;
+                if (!ok) erase_mark(u, v);
             }
             compact_domains();
         }
-        stats.domain_values_after_bfs_filter = domain_values();
     }
 
     void reverse_bfs_refine_to_fixpoint() {
@@ -465,7 +416,6 @@ public:
         bool changed = true;
         while (changed) {
             changed = false;
-            stats.refine_iterations++;
             for (int bi=(int)bfs_order.size()-1; bi>=0; --bi) {
                 int u = bfs_order[bi];
                 for (int v:dom[u]) {
@@ -476,7 +426,7 @@ public:
                         if (!support_in_domain(u, v, c)) { ok = false; break; }
                     }
                     if (!ok) {
-                        if (erase_mark(u,v)) { stats.reverse_refine_deletions++; changed = true; }
+                        if (erase_mark(u,v)) { changed = true; }
                         continue;
                     }
                     // Non-tree neighbors must also have support. This mirrors NTE_Candidates-based pruning.
@@ -485,13 +435,12 @@ public:
                         if (!support_in_domain(u, v, w)) { ok = false; break; }
                     }
                     if (!ok) {
-                        if (erase_mark(u,v)) { stats.nte_support_deletions++; changed = true; }
+                        if (erase_mark(u,v)) { changed = true; }
                     }
                 }
                 if (changed) compact_domains();
             }
         }
-        stats.domain_values_after_reverse_refine = domain_values();
     }
 
     void rebuild_positions() {
@@ -503,7 +452,6 @@ public:
             });
             for (int i=0; i<(int)dom[u].size(); ++i) pos_in_dom[u][dom[u][i]] = i;
         }
-        stats.root_pivots = dom[root].size();
     }
 
     static vector<int> intersect_sorted_vectors(const vector<int>& a, const vector<int>& b) {
@@ -521,14 +469,12 @@ public:
         for (int u=0; u<qn; ++u) if (parent[u] >= 0) {
             int p = parent[u];
             te[u].assign(dom[p].size(), {});
-            stats.te_candidate_lists += dom[p].size();
             for (int pi=0; pi<(int)dom[p].size(); ++pi) {
                 int pv = dom[p][pi];
                 auto& list = te[u][pi];
                 for (int cv:G.adj[pv]) if (cv >= 0 && cv < n && mark[midx(u,cv)]) list.push_back(cv);
                 std::sort(list.begin(), list.end());
                 list.erase(std::unique(list.begin(), list.end()), list.end());
-                stats.te_candidate_entries += list.size();
             }
         }
 
@@ -542,14 +488,12 @@ public:
                 NTEIndex idx;
                 idx.w = earlier;
                 idx.lists.assign(dom[earlier].size(), {});
-                stats.nte_candidate_lists += dom[earlier].size();
                 for (int wi=0; wi<(int)dom[earlier].size(); ++wi) {
                     int wv = dom[earlier][wi];
                     auto& list = idx.lists[wi];
                     for (int cv:G.adj[wv]) if (cv >= 0 && cv < n && mark[midx(later,cv)]) list.push_back(cv);
                     std::sort(list.begin(), list.end());
                     list.erase(std::unique(list.begin(), list.end()), list.end());
-                    stats.nte_candidate_entries += list.size();
                 }
                 nte_for_child[later].push_back(std::move(idx));
             }
@@ -577,7 +521,6 @@ public:
             if (wv < 0) continue;
             int wi = pos_in_dom[w][wv];
             if (wi < 0 || wi >= (int)idx.lists.size()) return {};
-            stats.intersections++;
             cand = intersect_sorted_vectors(cand, idx.lists[wi]);
             if (cand.empty()) break;
         }
@@ -585,8 +528,7 @@ public:
     }
 
     bool structurally_feasible(int u, int v, const vector<int>& mapping, const vector<uint8_t>& used) {
-        stats.candidate_extensions++;
-        if (used[v]) { stats.injectivity_prunes++; return false; }
+        if (used[v]) return false;
         // Strict CECI enumeration: structural edge consistency to the tree parent and all earlier
         // non-tree neighbors is enforced by TE_Candidates and NTE_Candidates intersections.
         // We intentionally do not re-check all mapped query edges here; otherwise the search
@@ -597,13 +539,11 @@ public:
     }
 
     bool semantic_pass(int u, int v) {
-        stats.semantic_similarity_evals++;
         return dot_product(Q.x[u], G.x[v]) >= tau;
     }
 
     template<class Emit>
     void dfs(int pos, vector<int>& mapping, vector<uint8_t>& used, Emit&& emit, uint64_t max_matches) {
-        stats.recursive_calls++;
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (pos == qn) {
             stats.complete_matches++;
@@ -617,7 +557,7 @@ public:
             if (!mark[midx(u,v)]) continue;
             if (!structurally_feasible(u, v, mapping, used)) continue;
             // Semantic threshold is checked after the TE/NTE structural matching list is generated.
-            if (!semantic_pass(u, v)) { stats.semantic_partial_prunes++; continue; }
+            if (!semantic_pass(u, v)) continue;
             mapping[u] = v; used[v] = 1;
             dfs(pos+1, mapping, used, std::forward<Emit>(emit), max_matches);
             used[v] = 0; mapping[u] = -1;
@@ -633,36 +573,6 @@ public:
         return stats.complete_matches;
     }
 
-    void print_profile() const {
-        cout << "\n========== CECI Structural-Index Semantic-Partial Profile ==========" << "\n";
-        cout << "complete_matches                    : " << stats.complete_matches << "\n";
-        cout << "recursive_calls                     : " << stats.recursive_calls << "\n";
-        cout << "candidate_extensions                : " << stats.candidate_extensions << "\n";
-        cout << "injectivity_prunes                  : " << stats.injectivity_prunes << "\n";
-        cout << "structural_prunes                   : " << stats.structural_prunes << "\n";
-        cout << "edge_checks                         : " << stats.edge_checks << "\n";
-        cout << "edge_verification_policy            : TE/NTE intersection only\n";
-        cout << "semantic_index_policy               : not used in TE/NTE construction; checked after partial extension\n";
-        cout << "semantic_similarity_evals           : " << stats.semantic_similarity_evals << "\n";
-        cout << "semantic_partial_prunes             : " << stats.semantic_partial_prunes << "\n";
-        cout << "root_query_vertex                   : " << root << "\n";
-        cout << "root_embedding_clusters             : " << stats.root_pivots << "\n";
-        cout << "initial_structural_domain_values    : " << stats.initial_structural_domain_values << "\n";
-        cout << "domain_values_after_bfs_filter      : " << stats.domain_values_after_bfs_filter << "\n";
-        cout << "domain_values_after_reverse_refine  : " << stats.domain_values_after_reverse_refine << "\n";
-        cout << "bfs_parent_deletions                : " << stats.bfs_parent_deletions << "\n";
-        cout << "reverse_refine_deletions            : " << stats.reverse_refine_deletions << "\n";
-        cout << "nte_support_deletions               : " << stats.nte_support_deletions << "\n";
-        cout << "refine_iterations                   : " << stats.refine_iterations << "\n";
-        cout << "te_candidate_lists                  : " << stats.te_candidate_lists << "\n";
-        cout << "te_candidate_entries                : " << stats.te_candidate_entries << "\n";
-        cout << "nte_candidate_lists                 : " << stats.nte_candidate_lists << "\n";
-        cout << "nte_candidate_entries               : " << stats.nte_candidate_entries << "\n";
-        cout << "intersection_operations             : " << stats.intersections << "\n";
-        cout << "matching_order                      :";
-        for (int u:order) cout << ' ' << u;
-        cout << "\n";
-    }
 };
 
 class MatchWriter {
@@ -728,11 +638,9 @@ int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         double t0 = now_sec();
-        print_memory("program start");
         cout << "Loading graph CSV ...\n";
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize);
         cout << "Data graph: n=" << G.n << " dim=" << G.dim << "\n";
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt;
@@ -752,12 +660,10 @@ int main(int argc, char** argv) {
         }
         cout << "Query graph: n=" << Q.n << " dim=" << Q.dim << "\n";
         double t1 = now_sec();
-        print_memory("after query preparation");
 
         cout << "Initializing CECI Structural-Index Semantic-Partial baseline ...\n";
         CECISemanticPartial matcher(G, Q, args.tau);
         double t2 = now_sec();
-        print_memory("after CECI construction");
 
         MatchWriter writer(args.output, Q.n);
         auto emit = [&](const vector<int>& mapping){ writer.write(mapping); };
@@ -765,8 +671,6 @@ int main(int argc, char** argv) {
         uint64_t count = matcher.run(emit, args.max_matches);
         writer.flush();
         double t3 = now_sec();
-        print_memory("after matching");
-        matcher.print_profile();
         cout << "\nFound " << count << " match(es).\n";
         cout << "Matches written to: " << args.output << "\n";
         cout << "\n========== Runtime Summary ==========\n";
