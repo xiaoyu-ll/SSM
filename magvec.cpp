@@ -72,11 +72,6 @@ static double peak_rss_mb() {
 #endif
 }
 
-static void print_memory(const string& tag) {
-    cout << "[Memory] " << tag << ": current RSS=" << current_rss_mb()
-         << " MB, peak RSS=" << peak_rss_mb() << " MB\n";
-}
-
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
     string cur;
@@ -478,13 +473,6 @@ public:
     int center_q = -1;
 
     unordered_map<int, vector<float>> rwr_cache;
-    uint64_t rwr_computes = 0;
-    uint64_t sim_evals = 0;
-    uint64_t local_search_calls = 0;
-    uint64_t partial_expansions = 0;
-    uint64_t completed_count = 0;
-    uint64_t exact_hit_count = 0;
-
     MAGEVecMatcher(const Graph& data, const Graph& query, const Args& a)
         : G(data), Q(query), args(a), qn(query.n), gn(data.n) {
         if (G.dim != Q.dim) throw std::runtime_error("Feature dimensions do not match.");
@@ -493,7 +481,6 @@ public:
     }
 
     float sim_qv(int q, int v) {
-        sim_evals++;
         return dot_product(Q.x[q], G.x[v]);
     }
 
@@ -504,7 +491,6 @@ public:
             auto kb = std::make_tuple(-Q.deg[best], best);
             if (ku < kb) best = u;
         }
-        cout << "[MAGE-VEC Detect-Candidate] query center = q" << best << ", deg=" << Q.deg[best] << "\n";
         return best;
     }
 
@@ -516,8 +502,6 @@ public:
     const vector<float>& rwr_from_seed(int seed) {
         auto it = rwr_cache.find(seed);
         if (it != rwr_cache.end()) return it->second;
-        rwr_computes++;
-
         vector<float> r(gn, 0.0f), next(gn, 0.0f);
         r[seed] = 1.0f;
         const float restart = 1.0f - args.rwr_alpha;
@@ -593,7 +577,6 @@ public:
     };
 
     vector<LocalCand> local_search(int q_u, const Partial& p) {
-        local_search_calls++;
         vector<int> mapped_neighbors;
         for (int w : Q.adj[q_u]) if (p.mapping[w] != -1) mapped_neighbors.push_back(w);
 
@@ -684,7 +667,6 @@ public:
         vector<int> out;
         out.reserve(seeds.size());
         for (const auto& c : seeds) out.push_back(c.v);
-        cout << "[MAGE-VEC] anchor seed candidates expanded = " << out.size() << "\n";
         return out;
     }
 
@@ -714,7 +696,6 @@ public:
                 if (q_u < 0) continue;
                 auto cands = local_search(q_u, p);
                 for (const auto& c : cands) {
-                    partial_expansions++;
                     Partial np = p;
                     np.mapping[q_u] = c.v;
                     np.used_nodes.push_back(c.v);
@@ -732,7 +713,6 @@ public:
             });
             if (next_beam.size() > args.beam_width) next_beam.resize(size_t(args.beam_width));
             beam.swap(next_beam);
-            cout << "[MAGE-VEC] depth " << depth << " beam size = " << beam.size() << "\n";
         }
 
         for (const Partial& p : beam) {
@@ -749,8 +729,6 @@ public:
             c.edge_score = p.edge_score;
             c.missing_edges = p.missing_edges;
             c.exact_valid = exact_valid(c.mapping);
-            completed_count++;
-            if (c.exact_valid) exact_hit_count++;
             completed.push_back(std::move(c));
         }
 
@@ -762,23 +740,6 @@ public:
         return completed;
     }
 
-    void print_profile() const {
-        cout << "\n========== MAGE-VEC Profile ==========\n";
-        cout << "query_center               : q" << center_q << "\n";
-        cout << "rwr_computes               : " << rwr_computes << "\n";
-        cout << "rwr_cache_size             : " << rwr_cache.size() << "\n";
-        cout << "sim_evals                  : " << sim_evals << "\n";
-        cout << "local_search_calls         : " << local_search_calls << "\n";
-        cout << "partial_expansions         : " << partial_expansions << "\n";
-        cout << "completed_unique           : " << completed_count << "\n";
-        cout << "exact_hits_before_topk_cut : " << exact_hit_count << "\n";
-        cout << "hard_semantic              : " << (args.hard_semantic ? "true" : "false") << "\n";
-        cout << "require_edges              : " << (args.require_edges ? "true" : "false") << "\n";
-        cout << "rwr_iters                  : " << args.rwr_iters << "\n";
-        cout << "rwr_alpha                  : " << args.rwr_alpha << "\n";
-        cout << "beam_width                 : " << args.beam_width << "\n";
-        cout << "local_topl                 : " << args.local_topl << "\n";
-    }
 };
 
 static void write_outputs(const string& match_path, const string& score_path,
@@ -807,12 +768,10 @@ int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         const double t0 = now_sec();
-        print_memory("program start");
 
         cout << "Loading graph CSV ...\n";
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize, true);
         cout << "Data graph: n=" << G.n << " dim=" << G.dim << "\n";
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt_mapping;
@@ -855,7 +814,6 @@ int main(int argc, char** argv) {
                      << " --query-edges " << qe_path << "\n";
             }
         }
-        print_memory("after query preparation");
 
         MAGEVecMatcher matcher(G, Q, args);
         cout << "Running MAGE-VEC baseline ...\n";
@@ -873,7 +831,6 @@ int main(int argc, char** argv) {
         if (!args.count_only) write_outputs(output_path, scores_path, results, Q.n);
         const double t1 = now_sec();
 
-        matcher.print_profile();
         uint64_t exact_topk = 0;
         for (const auto& c : results) if (c.exact_valid) exact_topk++;
         cout << "\nReturned " << results.size() << " top-k mapping(s).\n";
