@@ -392,81 +392,7 @@ static bool is_connected_graph(const Graph& H) {
 
 
 struct IVFJoinStats {
-    uint64_t recursive_calls = 0;
     uint64_t complete_matches = 0;
-
-    uint64_t anchor_candidates_before_filter = 0;
-    uint64_t anchor_candidates = 0;
-    int anchor_restrictive_query = -1;
-    uint64_t anchor_filter_pruned = 0;
-
-    uint64_t ivf_cells = 0;
-    uint64_t ivf_cell_tests = 0;
-    uint64_t ivf_cell_prunes = 0;
-    uint64_t ivf_points_scanned = 0;
-    uint64_t ivf_exact_similarity_evals = 0;
-    uint64_t semantic_candidates_total = 0;
-    uint64_t angular_cap_certified = 0;
-    uint64_t angular_shells = 16;
-    uint64_t angular_shell_entries = 0;
-    uint64_t angular_shell_nonempty = 0;
-
-    uint64_t shell_edge_bucket_directed_edges = 0;
-    uint64_t shell_edge_bucket_tests = 0;
-    uint64_t shell_edge_bucket_entries = 0;
-    uint64_t shell_edge_bucket_nonempty = 0;
-    uint64_t shell_edge_bucket_support_generated = 0;
-    uint64_t shell_edge_bucket_pair_hits = 0;
-    uint64_t ivf_shell_pair_blocks = 0;
-    uint64_t ivf_shell_empty_blocks = 0;
-    uint64_t ivf_shell_source_blocks = 0;
-    uint64_t ivf_shell_target_blocks = 0;
-    uint64_t ivf_shell_candidates_scanned = 0;
-
-    uint64_t qscore_mask_vertices = 0;
-    uint64_t qscore_mask_score_evals = 0;
-    uint64_t maskpair_edge_scans = 0;
-    uint64_t maskpair_edge_skips_untouched = 0;
-    uint64_t maskpair_query_src_hits = 0;
-    uint64_t maskpair_query_edge_hits = 0;
-    uint64_t maskpair_support_generated = 0;
-
-    uint64_t qsubspace_rank = 0;
-    uint64_t qsubspace_score_evals = 0;
-    uint64_t edge_range_directed_edges = 0;
-    uint64_t edge_range_nodes = 0;
-    uint64_t edge_range_node_tests = 0;
-    uint64_t edge_range_node_prunes = 0;
-    uint64_t edge_range_node_full_accepts = 0;
-    uint64_t edge_range_leaf_tests = 0;
-    uint64_t edge_range_support_generated = 0;
-
-    uint64_t support_edge_build_scans = 0;
-    uint64_t support_edges_total = 0;
-    uint64_t ac_rounds = 0;
-    uint64_t ac_support_tests = 0;
-    uint64_t ac_vertices_removed = 0;
-    uint64_t active_candidates_total = 0;
-
-    uint64_t pivot_batch_calls = 0;
-    uint64_t support_domain_builds = 0;
-    uint64_t support_base_entries_scanned = 0;
-    uint64_t support_membership_tests = 0;
-    uint64_t support_consistency_prunes = 0;
-    uint64_t compact_active_total = 0;
-    uint64_t compact_bitset_edges = 0;
-    uint64_t compact_bitset_words = 0;
-    uint64_t compact_domain_builds = 0;
-    uint64_t compact_word_ands = 0;
-    uint64_t compact_bits_enumerated = 0;
-    uint64_t active_local_rows = 0;
-    uint64_t active_local_row_lookups = 0;
-    uint64_t active_local_empty_lookups = 0;
-    uint64_t domain_empty_prunes = 0;
-
-    uint64_t local_support_calls = 0;
-    uint64_t local_support_removed = 0;
-    uint64_t local_support_empty_prunes = 0;
 };
 
 class AngularShellIVFBucketMatcher {
@@ -559,7 +485,6 @@ public:
     }
 
     float exact_sim(int u, int v) {
-        stats.ivf_exact_similarity_evals++;
         return dot_product(Q.x[u], G.x[v]);
     }
 
@@ -613,14 +538,13 @@ public:
                 query_angle[u][l] = angle_from_dot(dot_product(Q.x[u], angular_index[l].landmark_vec));
             }
         }
-        stats.ivf_cells = angular_index.size();
     }
 
     void build_semantic_candidates_by_angular_range() {
         sem_cands.assign(num_q, {});
         sem_member.assign(size_t(num_q) * size_t(num_g), 0);
         sem_shell.assign(size_t(num_q) * size_t(num_g), -1);
-        const int shell_count = int(stats.angular_shells);
+        const int shell_count = 16;
         sem_shell_cands.assign(num_q, vector<vector<int>>(shell_count));
 
         // Angular-cap first, IVF-like shells second.
@@ -640,7 +564,6 @@ public:
             // primary exact access path rather than a global IVF cell assignment.
             vector<std::pair<size_t,size_t>> intervals(angular_index.size());
             for (int l = 0; l < int(angular_index.size()); ++l) {
-                stats.ivf_cell_tests++;
                 const auto& arr = angular_index[l].sorted_by_angle;
                 float qa = query_angle[u][l];
                 float lo_val = std::max(0.0f, qa - theta_tau);
@@ -655,7 +578,6 @@ public:
                         if (a.first != b.first) return a.first < b.first;
                         return a.second < b.second;
                     });
-                if (hi_it == lo_it) stats.ivf_cell_prunes++;
                 intervals[l] = {size_t(lo_it - arr.begin()), size_t(hi_it - arr.begin())};
             }
 
@@ -669,7 +591,6 @@ public:
             for (size_t ii = lo; ii < hi; ++ii) {
                 int v = primary[ii].second;
                 float av = primary[ii].first;
-                stats.ivf_points_scanned++;
                 if (G.deg[v] < Q.deg[u]) continue;
 
                 // Additional landmarks are safe necessary filters.  They are not IVF
@@ -688,7 +609,6 @@ public:
                 // verify the original dot-product predicate to keep the algorithm exactly
                 // identical to the problem definition.  This protects against acos/float
                 // boundary effects and any non-perfect normalization in the input vectors.
-                stats.ivf_exact_similarity_evals++;
                 if (dot_product(Q.x[u], G.x[v]) < tau) continue;
 
                 int sid = 0;
@@ -698,24 +618,20 @@ public:
                     if (sid >= shell_count) sid = shell_count - 1;
                 }
                 shells[sid].push_back(v);
-                stats.angular_cap_certified++;
             }
 
             // IVF-like shell output order: tight cap center first.  This improves
             // downstream anchor/order decisions without changing the exact candidate set.
             for (int sid = 0; sid < shell_count; ++sid) {
-                if (!shells[sid].empty()) stats.angular_shell_nonempty++;
                 std::sort(shells[sid].begin(), shells[sid].end());
                 for (int v : shells[sid]) {
                     out.push_back(v);
                     sem_member[qv_index(u, v)] = 1;
                     sem_shell[qv_index(u, v)] = sid;
                     sem_shell_cands[u][sid].push_back(v);
-                    stats.angular_shell_entries++;
                 }
             }
             std::sort(out.begin(), out.end());
-            stats.semantic_candidates_total += out.size();
         }
     }
 
@@ -755,12 +671,11 @@ public:
         // (u,w) retrieves exactly those buckets whose product code contains u on the
         // source side and w on the target side.  This is an exact vector-range index
         // over the query-score subspace, without the heavy range-tree node bounds.
-        stats.qsubspace_rank = uint64_t(num_q);
 
         vector<uint8_t> touched(num_g, 0);
         vector<uint64_t> qmask(num_g, 0ull);
         vector<int> touched_vertices;
-        touched_vertices.reserve(stats.semantic_candidates_total);
+        touched_vertices.reserve(num_g);
 
         if (num_q <= 63) {
             for (int u = 0; u < num_q; ++u) {
@@ -861,19 +776,9 @@ public:
                     // data ids because AC still runs before active-local bitsets exist.
                     for (const DEdge& e : bucket) add_support_edge(eid, e.a, e.b);
                     routed_bucket_copies++;
-                    stats.maskpair_query_edge_hits += bucket.size();
-                    stats.maskpair_support_generated += bucket.size();
-                    stats.edge_range_support_generated += bucket.size();
-                    stats.shell_edge_bucket_entries += bucket.size();
-                    stats.shell_edge_bucket_support_generated += bucket.size();
                 }
             }
 
-            stats.edge_range_node_tests = code_bucket_tests;
-            stats.edge_range_node_full_accepts = routed_code_buckets;
-            stats.edge_range_leaf_tests = stats.edge_range_support_generated;
-            stats.edge_range_node_prunes = code_bucket_tests - routed_code_buckets;
-            stats.shell_edge_bucket_nonempty = routed_bucket_copies;
         } else {
             // Correctness fallback for larger query sizes: scan each induced edge once
             // and enumerate compatible query-edge bits by sem_member.  This branch is
@@ -886,50 +791,25 @@ public:
                     for (int eid = 0; eid < int(dir_qedges.size()); ++eid) {
                         int u = dir_qedges[eid].first;
                         int w = dir_qedges[eid].second;
-                        stats.edge_range_leaf_tests++;
                         if (!sem_member[qv_index(u, a)] || !sem_member[qv_index(w, b)]) continue;
                         add_support_edge(eid, a, b);
-                        stats.maskpair_query_edge_hits++;
-                        stats.maskpair_support_generated++;
-                        stats.edge_range_support_generated++;
-                        stats.shell_edge_bucket_entries++;
-                        stats.shell_edge_bucket_support_generated++;
                     }
                 }
             }
         }
 
-        stats.edge_range_directed_edges = induced_edges;
-        stats.shell_edge_bucket_directed_edges = touched_edge_scans;
-        stats.maskpair_edge_scans = touched_edge_scans;
-        stats.maskpair_edge_skips_untouched = skipped_untouched_dst;
-        stats.qscore_mask_vertices = touched_vertices.size();
-        stats.qscore_mask_score_evals = 0;
-        stats.qsubspace_score_evals = 0;
-        stats.edge_range_nodes = 0;
-        stats.shell_edge_bucket_tests = stats.edge_range_node_tests + stats.edge_range_leaf_tests;
-        stats.shell_edge_bucket_nonempty = stats.edge_range_node_full_accepts;
-        stats.shell_edge_bucket_pair_hits = stats.edge_range_support_generated;
-        stats.ivf_shell_pair_blocks = 0;
-        stats.ivf_shell_empty_blocks = 0;
-        stats.ivf_shell_source_blocks = 0;
-        stats.ivf_shell_target_blocks = 0;
-        stats.ivf_shell_candidates_scanned = 0;
 
         // The code-bucket path routes every directed edge object at most once to a
         // directed query edge, so support rows do not require a separate sort/unique
         // materialization pass.  This keeps the vector-retrieval output in direct row
         // form for AC and compact-bitset construction.
-        stats.support_edges_total = 0;
         for (int eid = 0; eid < int(dir_qedges.size()); ++eid) {
-            for (const auto& list : support_lists[eid]) stats.support_edges_total += list.size();
         }
     }
 
 
 
     bool has_active_support(int eid, int target_q, int data_v) {
-        stats.ac_support_tests++;
         if (eid < 0) return false;
         int rid = support_row_id[eid][data_v];
         if (rid < 0) return false;
@@ -944,7 +824,6 @@ public:
         bool changed = true;
         while (changed) {
             changed = false;
-            stats.ac_rounds++;
             for (int eid = 0; eid < int(dir_qedges.size()); ++eid) {
                 int u = dir_qedges[eid].first;
                 int w = dir_qedges[eid].second;
@@ -953,7 +832,6 @@ public:
                     if (!sem_member[qv_index(u, v)]) continue;
                     if (!has_active_support(eid, w, v)) {
                         sem_member[qv_index(u, v)] = 0;
-                        stats.ac_vertices_removed++;
                         changed = true;
                     }
                 }
@@ -966,7 +844,6 @@ public:
                 if (sem_member[qv_index(u, v)]) kept.push_back(v);
             }
             sem_cands[u].swap(kept);
-            stats.active_candidates_total += sem_cands[u].size();
         }
     }
 
@@ -979,7 +856,6 @@ public:
                 active_id[u][sem_cands[u][i]] = i;
             }
             active_words[u] = (int(sem_cands[u].size()) + 63) >> 6;
-            stats.compact_active_total += sem_cands[u].size();
         }
 
         // Active-local support materialization.  The previous compact executor
@@ -1018,9 +894,6 @@ public:
                     support_bits_active_row_id[eid][from_id] = brid;
                     support_bits_rows[eid].push_back(std::move(bits));
                     support_bits_row_popcnt[eid].push_back(pcnt);
-                    stats.compact_bitset_edges++;
-                    stats.compact_bitset_words += W;
-                    stats.active_local_rows++;
                 }
             }
         }
@@ -1037,19 +910,16 @@ public:
     }
 
     inline int active_local_row(int eid, int source_q, int from_data) {
-        stats.active_local_row_lookups++;
-        if (eid < 0) { stats.active_local_empty_lookups++; return -1; }
+        if (eid < 0) return -1;
         int from_id = active_id[source_q][from_data];
-        if (from_id < 0) { stats.active_local_empty_lookups++; return -1; }
+        if (from_id < 0) return -1;
         const auto& rows = support_bits_active_row_id[eid];
-        if (from_id >= int(rows.size())) { stats.active_local_empty_lookups++; return -1; }
+        if (from_id >= int(rows.size())) return -1;
         int brid = rows[from_id];
-        if (brid < 0) stats.active_local_empty_lookups++;
         return brid;
     }
 
     inline bool compact_support_contains(int eid, int from_data, int to_data) {
-        stats.support_membership_tests++;
         if (eid < 0) return false;
         int source_q = dir_qedges[eid].first;
         int target_q = dir_qedges[eid].second;
@@ -1147,7 +1017,6 @@ public:
                 best_q = qr;
             }
         }
-        stats.anchor_restrictive_query = best_q;
         return best_q;
     }
 
@@ -1157,7 +1026,6 @@ public:
         kept.reserve(anchor_cands.size());
         for (int va : anchor_cands) {
             if (has_anchor_neighbor_support(qr, va)) kept.push_back(va);
-            else stats.anchor_filter_pruned++;
         }
         return kept;
     }
@@ -1168,10 +1036,8 @@ public:
             if (G.deg[a] != G.deg[b]) return G.deg[a] < G.deg[b];
             return a < b;
         });
-        stats.anchor_candidates_before_filter = cands.size();
         int qr = choose_restrictive_anchor_neighbor(cands);
         cands = restrictive_anchor_filter(cands, qr);
-        stats.anchor_candidates = cands.size();
         return cands;
     }
 
@@ -1247,8 +1113,6 @@ public:
         int gp = mapping[pstar];
 
         for (int u : B) {
-            stats.support_domain_builds++;
-            stats.compact_domain_builds++;
             int eid0 = get_eid(pstar, u);
             if (eid0 < 0) continue;
             int source0_q = dir_qedges[eid0].first;
@@ -1256,17 +1120,14 @@ public:
             int brid0 = (gp_id >= 0 && gp_id < int(support_bits_active_row_id[eid0].size())) ? support_bits_active_row_id[eid0][gp_id] : -1;
             int W = active_words[u];
             if (W == 0 || brid0 < 0) {
-                stats.domain_empty_prunes++;
                 continue;
             }
             const auto& base_bits = support_bits_rows[eid0][brid0];
             if (base_bits.empty()) {
-                stats.domain_empty_prunes++;
                 continue;
             }
 
             vector<uint64_t> dom = base_bits;
-            stats.compact_word_ands += dom.size();
 
             for (int p : Q.adj[u]) {
                 int z = mapping[p];
@@ -1281,7 +1142,6 @@ public:
                 }
                 const auto& sb = support_bits_rows[eid][brid];
                 for (int i = 0; i < W; ++i) dom[i] &= sb[i];
-                stats.compact_word_ands += W;
             }
 
             const auto& vals = sem_cands[u];
@@ -1292,13 +1152,10 @@ public:
                     int id = (wi << 6) + b;
                     if (id >= int(vals.size())) continue;
                     int v = vals[id];
-                    stats.compact_bits_enumerated++;
                     if (used_g[v]) continue;
                     C[u].push_back(v);
                 }
             }
-            stats.support_base_entries_scanned += C[u].size();
-            if (C[u].empty()) stats.domain_empty_prunes++;
         }
     }
 
@@ -1319,7 +1176,6 @@ public:
         }
         if (!has_internal_edge) return true;
 
-        stats.local_support_calls++;
         bool changed = true;
         while (changed) {
             changed = false;
@@ -1342,11 +1198,10 @@ public:
                         if (!supported) { valid = false; break; }
                     }
                     if (valid) kept.push_back(v);
-                    else { stats.local_support_removed++; changed = true; }
+                    else { changed = true; }
                 }
                 C[u].swap(kept);
                 if (C[u].empty()) {
-                    stats.local_support_empty_prunes++;
                     return false;
                 }
             }
@@ -1420,7 +1275,6 @@ public:
 
     template <class Fn>
     void enumerate_batch_assignments(const vector<int>& B, const vector<vector<int>>& C, Fn&& fn) {
-        stats.pivot_batch_calls++;
         if (B.empty() || !batch_union_feasible(B, C)) return;
 
         vector<int> ordered = order_batch_vertices(B, C);
@@ -1437,7 +1291,6 @@ public:
              vector<vector<int>>& C,
              EmitFn&& emit,
              uint64_t max_matches) {
-        stats.recursive_calls++;
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (mapped_count == num_q) {
             stats.complete_matches++;
@@ -1455,7 +1308,6 @@ public:
         if (!local_support_prune(B, C)) return;
 
         if (B.size() == 1) {
-            stats.pivot_batch_calls++;
             int u = B[0];
             for (int v : C[u]) {
                 if (max_matches && stats.complete_matches >= max_matches) break;
@@ -1697,7 +1549,6 @@ int main(int argc, char** argv) {
 
         const double t3 = now_sec();
         print_memory("after matching");
-        //matcher.print_profile();
 
         cout << "\nFound " << count << " match(es).\n";
         if (args.count_only) cout << "Output mode: count-only; no match file written.\n";
