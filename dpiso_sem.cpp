@@ -295,16 +295,6 @@ static inline double dot_product(const vector<float>& a, const vector<float>& b)
 
 struct DpisoStats {
     uint64_t complete_matches = 0;
-    uint64_t recursive_calls = 0;
-    uint64_t semantic_similarity_evals = 0; // semantic checks are applied after each structurally feasible partial extension
-    uint64_t semantic_partial_prunes = 0;
-    uint64_t initial_domain_values = 0;
-    uint64_t candidate_values_scanned = 0;
-    uint64_t candidate_tests = 0;
-    uint64_t injectivity_prunes = 0;
-    uint64_t edge_checks = 0;
-    uint64_t edge_prunes = 0;
-    uint64_t empty_domain_prunes = 0;
 };
 
 class DpisoSemanticBaseline {
@@ -344,15 +334,11 @@ public:
                 if (G.deg[a] != G.deg[b]) return G.deg[a] < G.deg[b];
                 return a < b;
             });
-            stats.initial_domain_values += C[u].size();
-            if (C[u].empty()) stats.empty_domain_prunes++;
         }
     }
 
     bool semantic_feasible_pair(int u, int v) {
-        stats.semantic_similarity_evals++;
         if (dot_product(Q.x[u], G.x[v]) < tau) {
-            stats.semantic_partial_prunes++;
             return false;
         }
         return true;
@@ -376,23 +362,18 @@ public:
             out.reserve(std::min<size_t>(G.adj[gp].size(), 64));
             for (int v : G.adj[gp]) if (is_cand[pos(u, v)]) out.push_back(v);
         }
-        stats.candidate_values_scanned += out.size();
         return out;
     }
 
     bool feasible(int u, int v, const vector<int>& mapping, const vector<unsigned char>& used) {
-        stats.candidate_tests++;
         if (used[v]) {
-            stats.injectivity_prunes++;
             return false;
         }
         for (int p : Q.adj[u]) {
             int gp = mapping[p];
             if (gp < 0) continue;
-            stats.edge_checks++;
             if (!G.has_edge(v, gp)) {
-                stats.edge_prunes++;
-                return false;
+                    return false;
             }
         }
         return true;
@@ -426,7 +407,6 @@ public:
     template <class Emit>
     void dfs(vector<int>& mapping, vector<unsigned char>& used, int mapped_count,
              Emit&& emit, uint64_t max_matches) {
-        stats.recursive_calls++;
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (mapped_count == qn) {
             stats.complete_matches++;
@@ -437,7 +417,6 @@ public:
         if (u < 0) return;
         vector<int> cand = make_candidate_list(u, mapping);
         if (cand.empty()) {
-            stats.empty_domain_prunes++;
             return;
         }
         for (int v : cand) {
@@ -463,20 +442,6 @@ public:
         return stats.complete_matches;
     }
 
-    void print_profile() const {
-        cout << "\n========== DPiso-Sem PartialVerify Baseline Profile ==========" << "\n";
-        cout << "complete_matches             : " << stats.complete_matches << "\n";
-        cout << "recursive_calls              : " << stats.recursive_calls << "\n";
-        cout << "semantic_similarity_evals    : " << stats.semantic_similarity_evals << "\n";
-        cout << "semantic_partial_prunes     : " << stats.semantic_partial_prunes << "\n";
-        cout << "initial_domain_values        : " << stats.initial_domain_values << "\n";
-        cout << "candidate_values_scanned     : " << stats.candidate_values_scanned << "\n";
-        cout << "candidate_tests              : " << stats.candidate_tests << "\n";
-        cout << "injectivity_prunes           : " << stats.injectivity_prunes << "\n";
-        cout << "edge_checks                  : " << stats.edge_checks << "\n";
-        cout << "edge_prunes                  : " << stats.edge_prunes << "\n";
-        cout << "empty_domain_prunes          : " << stats.empty_domain_prunes << "\n";
-    }
 };
 
 class MatchWriter {
@@ -618,7 +583,6 @@ int main(int argc, char** argv) {
         double t3 = now_sec();
         print_memory("after matching");
 
-        matcher.print_profile();
         cout << "\nFound " << total << " match(es).\n";
         cout << "Matches written to: " << args.output << "\n";
         cout << "\n========== Runtime Summary ==========\n";
