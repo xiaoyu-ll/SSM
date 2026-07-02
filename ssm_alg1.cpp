@@ -68,10 +68,6 @@ static double peak_rss_mb() {
 #endif
 }
 
-static void print_memory(const string& tag) {
-    cout << "[Memory] " << tag << ": current RSS=" << current_rss_mb()
-         << " MB, peak RSS=" << peak_rss_mb() << " MB\n";
-}
 
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
@@ -334,19 +330,7 @@ static Graph sample_query_fast_cpp(const Graph& G, int k, uint64_t seed, int num
 
 
 struct Stats {
-    uint64_t recursive_calls = 0;
     uint64_t complete_matches = 0;
-    uint64_t batch_calls = 0;
-    uint64_t batch_successes = 0;
-    uint64_t batch_failures = 0;
-    uint64_t batch_assignment_trials = 0;
-    uint64_t batch_nodes_total = 0;
-    vector<uint64_t> selected_parent_count;
-
-    uint64_t es_total_checks = 0;
-    uint64_t es_full_evals = 0;
-    uint64_t anchor_restrictive_checks = 0;
-    uint64_t anchor_restrictive_prunes = 0;
 };
 
 class BasicBatchBFSMatcher {
@@ -375,15 +359,8 @@ public:
           anchor_restrictive_prefilter_k(restrictive_k),
           anchor_restrictive_pilot_sample_size(pilot_size) {
         if (G.dim != Q.dim) throw std::runtime_error("Feature dimensions do not match.");
-        stats.selected_parent_count.assign(num_q, 0);
         anchor_q = choose_anchor();
         build_query_bfs_tree(anchor_q);
-        cout << "[Query BFS tree]\n";
-        for (int u = 0; u < num_q; ++u) {
-            cout << "  q" << u << ": parent=" << q_parent[u] << ", children=[";
-            for (size_t i = 0; i < q_children[u].size(); ++i) { if (i) cout << ","; cout << q_children[u][i]; }
-            cout << "], depth=" << q_depth[u] << "\n";
-        }
         build_anchor_candidates();
     }
 
@@ -409,9 +386,6 @@ public:
             auto kb = std::make_tuple(sim_sums[best], -Q.deg[best], best);
             if (ku < kb) best = u;
         }
-        cout << "[Anchor selection]\n";
-        for (int u = 0; u < num_q; ++u) cout << "  q" << u << ": sim_sum=" << sim_sums[u] << ", deg=" << Q.deg[u] << "\n";
-        cout << "  chosen anchor = q" << best << "\n";
         return best;
     }
 
@@ -486,13 +460,11 @@ public:
 
     bool anchor_has_restrictive_support(int ga) {
         if (!enable_anchor_restrictive_pruning || anchor_restrictive_query < 0) return true;
-        stats.anchor_restrictive_checks++;
         int qr = anchor_restrictive_query;
         for (int nb : G.adj[ga]) {
             if (G.deg[nb] < Q.deg[qr]) continue;
             if (sim(qr, nb) >= tau) return true;
         }
-        stats.anchor_restrictive_prunes++;
         return false;
     }
 
@@ -500,10 +472,8 @@ public:
         vector<int> survivors;
         for (int v = 0; v < num_g; ++v) {
             if (G.deg[v] < Q.deg[anchor_q]) continue;
-            stats.es_total_checks++;
             if (sim(anchor_q, v) >= tau) survivors.push_back(v);
         }
-        stats.es_full_evals = stats.es_total_checks;
         if (enable_anchor_restrictive_pruning && !survivors.empty()) choose_anchor_restrictive_neighbor(survivors);
         for (int v : survivors) if (anchor_has_restrictive_support(v)) anchor_candidates.push_back(v);
         std::sort(anchor_candidates.begin(), anchor_candidates.end(), [&](int a, int b){
@@ -553,16 +523,14 @@ public:
     }
 
     template<class Fn>
-    void enumerate_batch(int q_parent, int g_parent, const vector<int>& child_list,
+    void enumerate_batch(int, int g_parent, const vector<int>& child_list,
                          const vector<int>& mapping, const vector<int>& used, Fn&& fn) {
-        stats.batch_calls++;
-        stats.batch_nodes_total += child_list.size();
-        if (child_list.empty()) { stats.batch_successes++; fn(vector<int>(num_q, -1)); return; }
+        if (child_list.empty()) { fn(vector<int>(num_q, -1)); return; }
 
         vector<vector<int>> C(num_q);
         for (int qc : child_list) {
             C[qc] = child_candidate_region(qc, g_parent, mapping, used);
-            if (C[qc].empty()) { stats.batch_failures++; return; }
+            if (C[qc].empty()) { return; }
         }
 
         vector<int> ordered = child_list;
@@ -573,12 +541,10 @@ public:
         });
 
         vector<int> local_map(num_q, -1), local_used;
-        uint64_t emitted = 0;
         std::function<void(int)> bt = [&](int idx){
-            if (idx == int(ordered.size())) { emitted++; fn(local_map); return; }
+            if (idx == int(ordered.size())) { fn(local_map); return; }
             int u = ordered[idx];
             for (int v : C[u]) {
-                stats.batch_assignment_trials++;
                 bool used_local = false;
                 for (int z : local_used) if (z == v) { used_local = true; break; }
                 if (used_local) continue;
@@ -597,20 +563,16 @@ public:
             }
         };
         bt(0);
-        if (emitted == 0) stats.batch_failures++;
-        else stats.batch_successes++;
     }
 
     template<class EmitFn>
     void search(vector<int>& mapping, vector<int>& used, vector<vector<int>>& remaining, int matched_count,
                 EmitFn&& emit, uint64_t max_matches=0) {
-        stats.recursive_calls++;
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (matched_count == num_q) { stats.complete_matches++; emit(mapping); return; }
 
         int q_parent = select_next_batch_parent(mapping, remaining);
         if (q_parent < 0) return;
-        stats.selected_parent_count[q_parent]++;
         int g_parent = mapping[q_parent];
         vector<int> child_list = remaining[q_parent];
 
@@ -649,27 +611,7 @@ public:
         return stats.complete_matches;
     }
 
-    void print_profile() const {
-        cout << "\n========== Basic Batch-BFS C++ Profile ==========" << "\n";
-        cout << "recursive_calls           : " << stats.recursive_calls << "\n";
-        cout << "complete_matches          : " << stats.complete_matches << "\n";
-        cout << "batch_calls               : " << stats.batch_calls << "\n";
-        cout << "batch_successes           : " << stats.batch_successes << "\n";
-        cout << "batch_failures            : " << stats.batch_failures << "\n";
-        cout << "batch_assignment_trials   : " << stats.batch_assignment_trials << "\n";
-        cout << "batch_nodes_total         : " << stats.batch_nodes_total << "\n";
-        cout << "\n[Selected parent count]\n";
-        for (int u = 0; u < num_q; ++u) if (stats.selected_parent_count[u]) cout << "  q" << u << ": " << stats.selected_parent_count[u] << "\n";
-        cout << "\n========== Anchor Candidate Stats ==========\n";
-        cout << "anchor_q                  : " << anchor_q << "\n";
-        cout << "anchor_restrictive_query  : " << anchor_restrictive_query << "\n";
-        cout << "anchor initial cands      : " << anchor_candidates.size() << "\n";
-        cout << "es_total_checks           : " << stats.es_total_checks << "\n";
-        cout << "es_full_evals             : " << stats.es_full_evals << "\n";
-        cout << "anchor_restrictive_checks : " << stats.anchor_restrictive_checks << "\n";
-        cout << "anchor_restrictive_prunes : " << stats.anchor_restrictive_prunes << "\n";
-        cout << "sim_cache_size            : " << sim_cache.size() << "\n";
-    }
+
 };
 
 class MatchWriter {
@@ -759,11 +701,9 @@ int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         double t0 = now_sec();
-        print_memory("program start");
         cout << "Loading graph CSV ...\n";
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize, true);
         cout << "Data graph: n=" << G.n << " dim=" << G.dim << "\n";
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt_mapping;
@@ -806,12 +746,10 @@ int main(int argc, char** argv) {
                      << " --query-edges " << qe_path << "\n";
             }
         }
-        print_memory("after query preparation");
 
         double t_init0 = now_sec();
         BasicBatchBFSMatcher matcher(G, Q, args.tau);
         double t_init1 = now_sec();
-        print_memory("after matcher initialization");
 
         MatchWriter writer(args.output, Q.n, !args.count_only);
         vector<vector<int>> preview;
@@ -823,8 +761,6 @@ int main(int argc, char** argv) {
         }, args.max_matches);
         writer.flush();
         double t_search1 = now_sec();
-        print_memory("after matching");
-        matcher.print_profile();
 
         cout << "\nFound " << cnt << " match(es).\n";
         if (!args.count_only) cout << "All matches streamed to: " << args.output << "\n";
