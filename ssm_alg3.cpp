@@ -1,3 +1,4 @@
+
 #include <algorithm>
 #include <chrono>
 #include <charconv>
@@ -73,8 +74,6 @@ static double peak_rss_mb() {
     return double(usage.ru_maxrss) / 1024.0;
 #endif
 }
-
-static void print_memory(const string&) {}
 
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
@@ -391,89 +390,7 @@ static bool is_connected_graph(const Graph& H) {
 
 
 struct IVFJoinStats {
-    uint64_t recursive_calls = 0;
     uint64_t complete_matches = 0;
-
-    uint64_t anchor_candidates_before_filter = 0;
-    uint64_t anchor_candidates = 0;
-    int anchor_restrictive_query = -1;
-    uint64_t anchor_filter_pruned = 0;
-
-    uint64_t ivf_cells = 0;
-    uint64_t ivf_cell_tests = 0;
-    uint64_t ivf_cell_prunes = 0;
-    uint64_t ivf_points_scanned = 0;
-    uint64_t ivf_exact_similarity_evals = 0;
-    uint64_t progressive_pair_tests = 0;
-    uint64_t progressive_blocks_scanned = 0;
-    uint64_t progressive_early_rejects = 0;
-    uint64_t progressive_full_evals = 0;
-    uint64_t semantic_candidates_total = 0;
-    uint64_t angular_cap_certified = 0;
-    uint64_t angular_shells = 16;
-    uint64_t angular_shell_entries = 0;
-    uint64_t angular_shell_nonempty = 0;
-
-    uint64_t shell_edge_bucket_directed_edges = 0;
-    uint64_t shell_edge_bucket_tests = 0;
-    uint64_t shell_edge_bucket_entries = 0;
-    uint64_t shell_edge_bucket_nonempty = 0;
-    uint64_t shell_edge_bucket_support_generated = 0;
-    uint64_t shell_edge_bucket_pair_hits = 0;
-    uint64_t ivf_shell_pair_blocks = 0;
-    uint64_t ivf_shell_empty_blocks = 0;
-    uint64_t ivf_shell_source_blocks = 0;
-    uint64_t ivf_shell_target_blocks = 0;
-    uint64_t ivf_shell_candidates_scanned = 0;
-
-    uint64_t qscore_mask_vertices = 0;
-    uint64_t qscore_mask_score_evals = 0;
-    uint64_t maskpair_edge_scans = 0;
-    uint64_t maskpair_edge_skips_untouched = 0;
-    uint64_t maskpair_query_src_hits = 0;
-    uint64_t maskpair_query_edge_hits = 0;
-    uint64_t maskpair_support_generated = 0;
-
-    uint64_t qsubspace_rank = 0;
-    uint64_t qsubspace_score_evals = 0;
-    uint64_t edge_range_directed_edges = 0;
-    uint64_t edge_range_nodes = 0;
-    uint64_t edge_range_node_tests = 0;
-    uint64_t edge_range_node_prunes = 0;
-    uint64_t edge_range_node_full_accepts = 0;
-    uint64_t edge_range_leaf_tests = 0;
-    uint64_t edge_range_support_generated = 0;
-
-    uint64_t support_edge_build_scans = 0;
-    uint64_t support_edges_total = 0;
-    uint64_t ac_rounds = 0;
-    uint64_t ac_support_tests = 0;
-    uint64_t ac_vertices_removed = 0;
-    uint64_t active_candidates_total = 0;
-
-    uint64_t pivot_batch_calls = 0;
-    uint64_t terminal_batch_calls = 0;
-    uint64_t terminal_direct_emits = 0;
-    uint64_t terminal_singleton_calls = 0;
-    uint64_t terminal_singleton_direct_emits = 0;
-    uint64_t support_domain_builds = 0;
-    uint64_t support_base_entries_scanned = 0;
-    uint64_t support_membership_tests = 0;
-    uint64_t support_consistency_prunes = 0;
-    uint64_t compact_active_total = 0;
-    uint64_t compact_bitset_edges = 0;
-    uint64_t compact_bitset_words = 0;
-    uint64_t compact_domain_builds = 0;
-    uint64_t compact_word_ands = 0;
-    uint64_t compact_bits_enumerated = 0;
-    uint64_t active_local_rows = 0;
-    uint64_t active_local_row_lookups = 0;
-    uint64_t active_local_empty_lookups = 0;
-    uint64_t domain_empty_prunes = 0;
-
-    uint64_t local_support_calls = 0;
-    uint64_t local_support_removed = 0;
-    uint64_t local_support_empty_prunes = 0;
 };
 
 class AngularShellIVFBucketMatcher {
@@ -590,7 +507,6 @@ public:
     }
 
     float exact_sim(int u, int v) {
-        stats.ivf_exact_similarity_evals++;
         return dot_product(Q.x[u], G.x[v]);
     }
 
@@ -640,11 +556,9 @@ public:
                 g_rem_norm[v][b] = float(std::sqrt(ss + prev * prev));
             }
         }
-        stats.ivf_cells = uint64_t(sim_blocks);
     }
 
     inline bool progressive_similarity_pass(int u, int v, float* final_score = nullptr) {
-        stats.progressive_pair_tests++;
         double s = 0.0;
         for (int b = 0; b < sim_blocks; ++b) {
             const int lo = sim_block_start[b];
@@ -654,18 +568,15 @@ public:
             const auto& gx = G.x[v];
             for (int j = lo; j < hi; ++j) part += double(qx[j]) * double(gx[j]);
             s += part;
-            stats.progressive_blocks_scanned++;
 
             if (b + 1 < sim_blocks) {
                 double ub = s + double(q_rem_norm[u][b + 1]) * double(g_rem_norm[v][b + 1]);
                 if (ub < double(tau)) {
-                    stats.progressive_early_rejects++;
                     if (final_score) *final_score = float(s);
                     return false;
                 }
             }
         }
-        stats.progressive_full_evals++;
         if (final_score) *final_score = float(s);
         return s >= double(tau);
     }
@@ -674,7 +585,7 @@ public:
         sem_cands.assign(num_q, {});
         sem_member.assign(size_t(num_q) * size_t(num_g), 0);
         sem_shell.assign(size_t(num_q) * size_t(num_g), -1);
-        const int shell_count = int(stats.angular_shells);
+        const int shell_count = 16;
         sem_shell_cands.assign(num_q, vector<vector<int>>(shell_count));
 
         for (int u = 0; u < num_q; ++u) {
@@ -683,7 +594,6 @@ public:
             vector<vector<int>> shells(shell_count);
 
             for (int v = 0; v < num_g; ++v) {
-                stats.ivf_points_scanned++;
                 if (G.deg[v] < Q.deg[u]) continue;
 
                 float score = 0.0f;
@@ -701,22 +611,18 @@ public:
                     if (sid >= shell_count) sid = shell_count - 1;
                 }
                 shells[sid].push_back(v);
-                stats.angular_cap_certified++;
             }
 
             for (int sid = 0; sid < shell_count; ++sid) {
-                if (!shells[sid].empty()) stats.angular_shell_nonempty++;
                 std::sort(shells[sid].begin(), shells[sid].end());
                 for (int v : shells[sid]) {
                     out.push_back(v);
                     sem_member[qv_index(u, v)] = 1;
                     sem_shell[qv_index(u, v)] = sid;
                     sem_shell_cands[u][sid].push_back(v);
-                    stats.angular_shell_entries++;
                 }
             }
             std::sort(out.begin(), out.end());
-            stats.semantic_candidates_total += out.size();
         }
     }
 
@@ -760,14 +666,13 @@ public:
                 query_angle[u][l] = angle_from_dot(dot_product(Q.x[u], angular_index[l].landmark_vec));
             }
         }
-        stats.ivf_cells = angular_index.size();
     }
 
     void build_semantic_candidates_by_angular_range() {
         sem_cands.assign(num_q, {});
         sem_member.assign(size_t(num_q) * size_t(num_g), 0);
         sem_shell.assign(size_t(num_q) * size_t(num_g), -1);
-        const int shell_count = int(stats.angular_shells);
+        const int shell_count = 16;
         sem_shell_cands.assign(num_q, vector<vector<int>>(shell_count));
 
         // Angular-cap first, IVF-like shells second.
@@ -787,7 +692,6 @@ public:
             // primary exact access path rather than a global IVF cell assignment.
             vector<std::pair<size_t,size_t>> intervals(angular_index.size());
             for (int l = 0; l < int(angular_index.size()); ++l) {
-                stats.ivf_cell_tests++;
                 const auto& arr = angular_index[l].sorted_by_angle;
                 float qa = query_angle[u][l];
                 float lo_val = std::max(0.0f, qa - theta_tau);
@@ -802,7 +706,6 @@ public:
                         if (a.first != b.first) return a.first < b.first;
                         return a.second < b.second;
                     });
-                if (hi_it == lo_it) stats.ivf_cell_prunes++;
                 intervals[l] = {size_t(lo_it - arr.begin()), size_t(hi_it - arr.begin())};
             }
 
@@ -816,7 +719,6 @@ public:
             for (size_t ii = lo; ii < hi; ++ii) {
                 int v = primary[ii].second;
                 float av = primary[ii].first;
-                stats.ivf_points_scanned++;
                 if (G.deg[v] < Q.deg[u]) continue;
 
                 // Additional landmarks are safe necessary filters.  They are not IVF
@@ -841,7 +743,6 @@ public:
                 // floating-point error while avoiding redundant similarity checks.
                 constexpr float ANG_BOUNDARY_EPS = 1e-6f;
                 if (av > theta_tau - ANG_BOUNDARY_EPS) {
-                    stats.ivf_exact_similarity_evals++;
                     if (dot_product(Q.x[u], G.x[v]) < tau) continue;
                 }
 
@@ -852,24 +753,20 @@ public:
                     if (sid >= shell_count) sid = shell_count - 1;
                 }
                 shells[sid].push_back(v);
-                stats.angular_cap_certified++;
             }
 
             // IVF-like shell output order: tight cap center first.  This improves
             // downstream anchor/order decisions without changing the exact candidate set.
             for (int sid = 0; sid < shell_count; ++sid) {
-                if (!shells[sid].empty()) stats.angular_shell_nonempty++;
                 std::sort(shells[sid].begin(), shells[sid].end());
                 for (int v : shells[sid]) {
                     out.push_back(v);
                     sem_member[qv_index(u, v)] = 1;
                     sem_shell[qv_index(u, v)] = sid;
                     sem_shell_cands[u][sid].push_back(v);
-                    stats.angular_shell_entries++;
                 }
             }
             std::sort(out.begin(), out.end());
-            stats.semantic_candidates_total += out.size();
         }
     }
 
@@ -909,12 +806,11 @@ public:
         // (u,w) retrieves exactly those buckets whose product code contains u on the
         // source side and w on the target side.  This is an exact vector-range index
         // over the query-score subspace, without the heavy range-tree node bounds.
-        stats.qsubspace_rank = uint64_t(num_q);
 
         vector<uint8_t> touched(num_g, 0);
         vector<uint64_t> qmask(num_g, 0ull);
         vector<int> touched_vertices;
-        touched_vertices.reserve(stats.semantic_candidates_total);
+        touched_vertices.reserve(num_g);
 
         if (num_q <= 63) {
             for (int u = 0; u < num_q; ++u) {
@@ -1015,19 +911,9 @@ public:
                     // data ids because AC still runs before active-local bitsets exist.
                     for (const DEdge& e : bucket) add_support_edge(eid, e.a, e.b);
                     routed_bucket_copies++;
-                    stats.maskpair_query_edge_hits += bucket.size();
-                    stats.maskpair_support_generated += bucket.size();
-                    stats.edge_range_support_generated += bucket.size();
-                    stats.shell_edge_bucket_entries += bucket.size();
-                    stats.shell_edge_bucket_support_generated += bucket.size();
                 }
             }
 
-            stats.edge_range_node_tests = code_bucket_tests;
-            stats.edge_range_node_full_accepts = routed_code_buckets;
-            stats.edge_range_leaf_tests = stats.edge_range_support_generated;
-            stats.edge_range_node_prunes = code_bucket_tests - routed_code_buckets;
-            stats.shell_edge_bucket_nonempty = routed_bucket_copies;
         } else {
             // Correctness fallback for larger query sizes: scan each induced edge once
             // and enumerate compatible query-edge bits by sem_member.  This branch is
@@ -1040,50 +926,25 @@ public:
                     for (int eid = 0; eid < int(dir_qedges.size()); ++eid) {
                         int u = dir_qedges[eid].first;
                         int w = dir_qedges[eid].second;
-                        stats.edge_range_leaf_tests++;
                         if (!sem_member[qv_index(u, a)] || !sem_member[qv_index(w, b)]) continue;
                         add_support_edge(eid, a, b);
-                        stats.maskpair_query_edge_hits++;
-                        stats.maskpair_support_generated++;
-                        stats.edge_range_support_generated++;
-                        stats.shell_edge_bucket_entries++;
-                        stats.shell_edge_bucket_support_generated++;
                     }
                 }
             }
         }
 
-        stats.edge_range_directed_edges = induced_edges;
-        stats.shell_edge_bucket_directed_edges = touched_edge_scans;
-        stats.maskpair_edge_scans = touched_edge_scans;
-        stats.maskpair_edge_skips_untouched = skipped_untouched_dst;
-        stats.qscore_mask_vertices = touched_vertices.size();
-        stats.qscore_mask_score_evals = 0;
-        stats.qsubspace_score_evals = 0;
-        stats.edge_range_nodes = 0;
-        stats.shell_edge_bucket_tests = stats.edge_range_node_tests + stats.edge_range_leaf_tests;
-        stats.shell_edge_bucket_nonempty = stats.edge_range_node_full_accepts;
-        stats.shell_edge_bucket_pair_hits = stats.edge_range_support_generated;
-        stats.ivf_shell_pair_blocks = 0;
-        stats.ivf_shell_empty_blocks = 0;
-        stats.ivf_shell_source_blocks = 0;
-        stats.ivf_shell_target_blocks = 0;
-        stats.ivf_shell_candidates_scanned = 0;
 
         // The code-bucket path routes every directed edge object at most once to a
         // directed query edge, so support rows do not require a separate sort/unique
         // materialization pass.  This keeps the vector-retrieval output in direct row
         // form for AC and compact-bitset construction.
-        stats.support_edges_total = 0;
         for (int eid = 0; eid < int(dir_qedges.size()); ++eid) {
-            for (const auto& list : support_lists[eid]) stats.support_edges_total += list.size();
         }
     }
 
 
 
     bool has_active_support(int eid, int target_q, int data_v) {
-        stats.ac_support_tests++;
         if (eid < 0) return false;
         int rid = support_row_id[eid][data_v];
         if (rid < 0) return false;
@@ -1098,7 +959,6 @@ public:
         bool changed = true;
         while (changed) {
             changed = false;
-            stats.ac_rounds++;
             for (int eid = 0; eid < int(dir_qedges.size()); ++eid) {
                 int u = dir_qedges[eid].first;
                 int w = dir_qedges[eid].second;
@@ -1107,7 +967,6 @@ public:
                     if (!sem_member[qv_index(u, v)]) continue;
                     if (!has_active_support(eid, w, v)) {
                         sem_member[qv_index(u, v)] = 0;
-                        stats.ac_vertices_removed++;
                         changed = true;
                     }
                 }
@@ -1120,7 +979,6 @@ public:
                 if (sem_member[qv_index(u, v)]) kept.push_back(v);
             }
             sem_cands[u].swap(kept);
-            stats.active_candidates_total += sem_cands[u].size();
         }
     }
 
@@ -1133,7 +991,6 @@ public:
                 active_id[u][sem_cands[u][i]] = i;
             }
             active_words[u] = (int(sem_cands[u].size()) + 63) >> 6;
-            stats.compact_active_total += sem_cands[u].size();
         }
 
         // Active-local support materialization.  The previous compact executor
@@ -1183,9 +1040,6 @@ public:
                     support_bits_rows[eid].push_back(std::move(bits));
                     support_bits_row_words[eid].push_back(std::move(nz_words));
                     support_bits_row_popcnt[eid].push_back(pcnt);
-                    stats.compact_bitset_edges++;
-                    stats.compact_bitset_words += W;
-                    stats.active_local_rows++;
                 }
             }
         }
@@ -1202,19 +1056,16 @@ public:
     }
 
     inline int active_local_row(int eid, int source_q, int from_data) {
-        stats.active_local_row_lookups++;
-        if (eid < 0) { stats.active_local_empty_lookups++; return -1; }
+        if (eid < 0) { return -1; }
         int from_id = active_id[source_q][from_data];
-        if (from_id < 0) { stats.active_local_empty_lookups++; return -1; }
+        if (from_id < 0) { return -1; }
         const auto& rows = support_bits_active_row_id[eid];
-        if (from_id >= int(rows.size())) { stats.active_local_empty_lookups++; return -1; }
+        if (from_id >= int(rows.size())) { return -1; }
         int brid = rows[from_id];
-        if (brid < 0) stats.active_local_empty_lookups++;
         return brid;
     }
 
     inline bool compact_support_contains(int eid, int from_data, int to_data) {
-        stats.support_membership_tests++;
         if (eid < 0) return false;
         int source_q = dir_qedges[eid].first;
         int target_q = dir_qedges[eid].second;
@@ -1243,9 +1094,6 @@ public:
             }
         }
         anchor_q = best;
-        cout << "[AngularShell-IVF Anchor] chosen anchor = q" << best
-             << ", deg=" << Q.deg[best]
-             << ", active_semantic_candidates=" << sem_cands[best].size() << "\n";
     }
 
     int residual_degree(int u, const vector<int>& mapping) const {
@@ -1312,7 +1160,6 @@ public:
                 best_q = qr;
             }
         }
-        stats.anchor_restrictive_query = best_q;
         return best_q;
     }
 
@@ -1322,7 +1169,6 @@ public:
         kept.reserve(anchor_cands.size());
         for (int va : anchor_cands) {
             if (has_anchor_neighbor_support(qr, va)) kept.push_back(va);
-            else stats.anchor_filter_pruned++;
         }
         return kept;
     }
@@ -1333,10 +1179,8 @@ public:
             if (G.deg[a] != G.deg[b]) return G.deg[a] < G.deg[b];
             return a < b;
         });
-        stats.anchor_candidates_before_filter = cands.size();
         int qr = choose_restrictive_anchor_neighbor(cands);
         cands = restrictive_anchor_filter(cands, qr);
-        stats.anchor_candidates = cands.size();
         return cands;
     }
 
@@ -1412,8 +1256,6 @@ public:
         int gp = mapping[pstar];
 
         for (int u : B) {
-            stats.support_domain_builds++;
-            stats.compact_domain_builds++;
             int eid0 = get_eid(pstar, u);
             if (eid0 < 0) continue;
             int source0_q = dir_qedges[eid0].first;
@@ -1421,18 +1263,15 @@ public:
             int brid0 = (gp_id >= 0 && gp_id < int(support_bits_active_row_id[eid0].size())) ? support_bits_active_row_id[eid0][gp_id] : -1;
             int W = active_words[u];
             if (W == 0 || brid0 < 0) {
-                stats.domain_empty_prunes++;
                 continue;
             }
             const auto& base_bits = support_bits_rows[eid0][brid0];
             if (base_bits.empty()) {
-                stats.domain_empty_prunes++;
                 continue;
             }
 
             vector<uint64_t>& dom = domain_scratch[u];
             dom.assign(base_bits.begin(), base_bits.end());
-            stats.compact_word_ands += dom.size();
 
             for (int p : Q.adj[u]) {
                 int z = mapping[p];
@@ -1451,7 +1290,6 @@ public:
                     dom[i] &= sb[i];
                     any |= (dom[i] != 0ull);
                 }
-                stats.compact_word_ands += W;
                 if (!any) break;
             }
 
@@ -1463,7 +1301,6 @@ public:
                     int id = (wi << 6) + b;
                     if (id >= int(vals.size())) continue;
                     int v = vals[id];
-                    stats.compact_bits_enumerated++;
                     // Keep Algorithm 3 output/fairness aligned with Algorithm 2:
                     // non-terminal candidate domains must exclude globally mapped
                     // data vertices before batch enumeration.
@@ -1471,8 +1308,6 @@ public:
                     C[u].push_back(v);
                 }
             }
-            stats.support_base_entries_scanned += C[u].size();
-            if (C[u].empty()) stats.domain_empty_prunes++;
         }
     }
 
@@ -1483,21 +1318,18 @@ public:
                                     vector<uint64_t>& dom,
                                     vector<int>* nonzero_words = nullptr) {
         if (nonzero_words) nonzero_words->clear();
-        stats.support_domain_builds++;
-        stats.compact_domain_builds++;
         int gp = mapping[pstar];
         int eid0 = get_eid(pstar, u);
-        if (eid0 < 0) { stats.domain_empty_prunes++; return false; }
+        if (eid0 < 0) { return false; }
         int source0_q = dir_qedges[eid0].first;
         int gp_id = active_id[source0_q][gp];
         int brid0 = (gp_id >= 0 && gp_id < int(support_bits_active_row_id[eid0].size())) ? support_bits_active_row_id[eid0][gp_id] : -1;
         int W = active_words[u];
-        if (W == 0 || brid0 < 0) { stats.domain_empty_prunes++; return false; }
+        if (W == 0 || brid0 < 0) { return false; }
         const auto& base_bits = support_bits_rows[eid0][brid0];
-        if (base_bits.empty()) { stats.domain_empty_prunes++; return false; }
+        if (base_bits.empty()) { return false; }
 
         dom.assign(base_bits.begin(), base_bits.end());
-        stats.compact_word_ands += dom.size();
         for (int p : Q.adj[u]) {
             int z = mapping[p];
             if (z == -1 || p == pstar) continue;
@@ -1505,10 +1337,9 @@ public:
             int source_q = dir_qedges[eid].first;
             int z_id = active_id[source_q][z];
             int brid = (z_id >= 0 && z_id < int(support_bits_active_row_id[eid].size())) ? support_bits_active_row_id[eid][z_id] : -1;
-            if (brid < 0) { std::fill(dom.begin(), dom.end(), 0ull); stats.domain_empty_prunes++; return false; }
+            if (brid < 0) { std::fill(dom.begin(), dom.end(), 0ull); return false; }
             const auto& sb = support_bits_rows[eid][brid];
             for (int i = 0; i < W; ++i) dom[i] &= sb[i];
-            stats.compact_word_ands += W;
         }
         for (int q = 0; q < num_q; ++q) {
             int z = mapping[q];
@@ -1525,7 +1356,6 @@ public:
         } else {
             for (uint64_t x : dom) if (x) return true;
         }
-        stats.domain_empty_prunes++;
         return false;
     }
 
@@ -1536,27 +1366,24 @@ public:
                                       vector<uint64_t>& vals) {
         words.clear();
         vals.clear();
-        stats.support_domain_builds++;
-        stats.compact_domain_builds++;
 
         int gp = mapping[pstar];
         int eid0 = get_eid(pstar, u);
-        if (eid0 < 0) { stats.domain_empty_prunes++; return false; }
+        if (eid0 < 0) { return false; }
         int source0_q = dir_qedges[eid0].first;
         int gp_id = active_id[source0_q][gp];
         int brid0 = (gp_id >= 0 && gp_id < int(support_bits_active_row_id[eid0].size())) ? support_bits_active_row_id[eid0][gp_id] : -1;
-        if (active_words[u] == 0 || brid0 < 0) { stats.domain_empty_prunes++; return false; }
+        if (active_words[u] == 0 || brid0 < 0) { return false; }
 
         const auto& base_row = support_bits_rows[eid0][brid0];
         const auto& base_words = support_bits_row_words[eid0][brid0];
-        if (base_words.empty()) { stats.domain_empty_prunes++; return false; }
+        if (base_words.empty()) { return false; }
         words.reserve(base_words.size());
         vals.reserve(base_words.size());
         for (int wi : base_words) {
             uint64_t x = base_row[wi];
             if (x) { words.push_back(wi); vals.push_back(x); }
         }
-        stats.compact_word_ands += words.size();
 
         for (int p : Q.adj[u]) {
             int z = mapping[p];
@@ -1565,7 +1392,7 @@ public:
             int source_q = dir_qedges[eid].first;
             int z_id = active_id[source_q][z];
             int brid = (z_id >= 0 && z_id < int(support_bits_active_row_id[eid].size())) ? support_bits_active_row_id[eid][z_id] : -1;
-            if (brid < 0) { stats.domain_empty_prunes++; return false; }
+            if (brid < 0) { return false; }
             const auto& sb = support_bits_rows[eid][brid];
             int out = 0;
             const int oldn = int(words.size());
@@ -1577,10 +1404,9 @@ public:
                     ++out;
                 }
             }
-            stats.compact_word_ands += oldn;
             words.resize(out);
             vals.resize(out);
-            if (out == 0) { stats.domain_empty_prunes++; return false; }
+            if (out == 0) { return false; }
         }
 
         for (int q = 0; q < num_q; ++q) {
@@ -1598,7 +1424,7 @@ public:
                 vals.erase(vals.begin() + pos);
             }
         }
-        if (words.empty()) { stats.domain_empty_prunes++; return false; }
+        if (words.empty()) { return false; }
         return true;
     }
 
@@ -1620,22 +1446,19 @@ public:
                                          const vector<uint64_t>*& row_view) {
         words_view = nullptr;
         row_view = nullptr;
-        stats.support_domain_builds++;
-        stats.compact_domain_builds++;
 
         int gp = mapping[pstar];
         int eid0 = get_eid(pstar, u);
-        if (eid0 < 0) { stats.domain_empty_prunes++; return false; }
+        if (eid0 < 0) { return false; }
         int source0_q = dir_qedges[eid0].first;
         int gp_id = active_id[source0_q][gp];
         int brid0 = (gp_id >= 0 && gp_id < int(support_bits_active_row_id[eid0].size())) ? support_bits_active_row_id[eid0][gp_id] : -1;
-        if (active_words[u] == 0 || brid0 < 0) { stats.domain_empty_prunes++; return false; }
+        if (active_words[u] == 0 || brid0 < 0) { return false; }
 
         const auto& base_words = support_bits_row_words[eid0][brid0];
-        if (base_words.empty()) { stats.domain_empty_prunes++; return false; }
+        if (base_words.empty()) { return false; }
         words_view = &base_words;
         row_view = &support_bits_rows[eid0][brid0];
-        stats.compact_word_ands += base_words.size();
         return true;
     }
 
@@ -1647,8 +1470,6 @@ public:
                                   EmitFn&& emit,
                                   uint64_t max_matches) {
         if (B.size() != 2) return false;
-        stats.pivot_batch_calls++;
-        stats.terminal_batch_calls++;
         int u = B[0], w = B[1];
         int eid = get_eid(u, w);
         if (eid < 0) {
@@ -1742,9 +1563,7 @@ public:
                     }
                 }
             }
-            stats.compact_bits_enumerated += bits_enum;
             stats.complete_matches += emitted;
-            stats.terminal_direct_emits += emitted;
             return true;
         }
 
@@ -1758,7 +1577,6 @@ public:
                     int uid = (wi << 6) + b;
                     int v = vals_u[uid];
                     if (Du_base_view && used_g[v]) continue;
-                    stats.compact_bits_enumerated++;
                     int brid = row_id[uid];
                     if (brid < 0) continue;
                     const auto& row = support_bits_rows[eid][brid];
@@ -1770,12 +1588,10 @@ public:
                             int bb = pop_lsb_index(zw);
                             int zid = (zj << 6) + bb;
                             int z = vals_w[zid];
-                            stats.compact_bits_enumerated++;
                             if (z == v) continue;
                             if (stats.complete_matches >= max_matches) { mapping[u] = -1; return true; }
                             mapping[w] = z;
                             stats.complete_matches++;
-                            stats.terminal_direct_emits++;
                             emit(mapping);
                             mapping[w] = -1;
                         }
@@ -1794,7 +1610,6 @@ public:
                 int uid = (wi << 6) + b;
                 int v = vals_u[uid];
                 if (Du_base_view && used_g[v]) continue;
-                stats.compact_bits_enumerated++;
                 mapping[u] = v;
                 for (int zj_i = 0; zj_i < int(Dw_words.size()); ++zj_i) {
                     int zj = Dw_words[zj_i];
@@ -1803,12 +1618,10 @@ public:
                         int bb = pop_lsb_index(zw);
                         int zid = (zj << 6) + bb;
                         int z = vals_w[zid];
-                        stats.compact_bits_enumerated++;
                         if (z == v) continue;
                         if (stats.complete_matches >= max_matches) { mapping[u] = -1; return true; }
                         mapping[w] = z;
                         stats.complete_matches++;
-                        stats.terminal_direct_emits++;
                         emit(mapping);
                         mapping[w] = -1;
                     }
@@ -1867,7 +1680,6 @@ public:
         }
         if (!has_internal_edge) return true;
 
-        stats.local_support_calls++;
         for (int u : B) rebuild_local_candidate_mask(u, C[u]);
 
         bool changed = true;
@@ -1888,14 +1700,13 @@ public:
                         }
                     }
                     if (valid) kept.push_back(v);
-                    else { stats.local_support_removed++; changed = true; }
+                    else { changed = true; }
                 }
                 if (kept.size() != C[u].size()) {
                     C[u].swap(kept);
                     rebuild_local_candidate_mask(u, C[u]);
                 }
                 if (C[u].empty()) {
-                    stats.local_support_empty_prunes++;
                     return false;
                 }
             }
@@ -1969,7 +1780,6 @@ public:
 
     template <class Fn>
     void enumerate_batch_assignments(const vector<int>& B, const vector<vector<int>>& C, Fn&& fn) {
-        stats.pivot_batch_calls++;
         if (B.empty() || !batch_union_feasible(B, C)) return;
 
         vector<int> ordered = order_batch_vertices(B, C);
@@ -2076,7 +1886,6 @@ public:
                                            const vector<vector<int>>& C,
                                            vector<uint8_t>& used_g,
                                            Fn&& fn) {
-        stats.pivot_batch_calls++;
         if (B.empty() || !batch_union_feasible(B, C)) return;
 
         vector<int> ordered = order_batch_vertices(B, C);
@@ -2098,7 +1907,6 @@ public:
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (idx == int(ordered.size())) {
             stats.complete_matches++;
-            stats.terminal_direct_emits++;
             emit(mapping);
             return;
         }
@@ -2132,8 +1940,6 @@ public:
                                    vector<uint8_t>& used_g,
                                    EmitFn&& emit,
                                    uint64_t max_matches) {
-        stats.pivot_batch_calls++;
-        stats.terminal_batch_calls++;
         if (B.size() != 2) return;
 
         // Blockwise-progressive terminal executor for the dominant 2-vertex
@@ -2171,7 +1977,6 @@ public:
                     mapping[w] = z;
                     used_g[z] = 1;
                     stats.complete_matches++;
-                    stats.terminal_direct_emits++;
                     emit(mapping);
                     used_g[z] = 0;
                     mapping[w] = -1;
@@ -2198,7 +2003,6 @@ public:
                 mapping[w] = z;
                 used_g[z] = 1;
                 stats.complete_matches++;
-                stats.terminal_direct_emits++;
                 emit(mapping);
                 used_g[z] = 0;
                 mapping[w] = -1;
@@ -2215,8 +2019,6 @@ public:
                                          vector<uint8_t>& used_g,
                                          EmitFn&& emit,
                                          uint64_t max_matches) {
-        stats.pivot_batch_calls++;
-        stats.terminal_batch_calls++;
         if (B.empty()) return;
 
         // Progressive terminal blocks are already produced by build_pivot_batch(),
@@ -2240,17 +2042,12 @@ public:
                                         vector<uint8_t>& used_g,
                                         EmitFn&& emit,
                                         uint64_t max_matches) {
-        stats.pivot_batch_calls++;
-        stats.terminal_batch_calls++;
-        stats.terminal_singleton_calls++;
         for (int v : cand) {
             if (max_matches && stats.complete_matches >= max_matches) break;
             if (used_g[v]) continue;
             mapping[u] = v;
             used_g[v] = 1;
             stats.complete_matches++;
-            stats.terminal_direct_emits++;
-            stats.terminal_singleton_direct_emits++;
             emit(mapping);
             used_g[v] = 0;
             mapping[u] = -1;
@@ -2264,7 +2061,6 @@ public:
              vector<vector<int>>& C,
              EmitFn&& emit,
              uint64_t max_matches) {
-        stats.recursive_calls++;
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (mapped_count == num_q) {
             stats.complete_matches++;
@@ -2302,7 +2098,6 @@ public:
         }
 
         if (B.size() == 1) {
-            stats.pivot_batch_calls++;
             int u = B[0];
             for (int v : C[u]) {
                 if (max_matches && stats.complete_matches >= max_matches) break;
@@ -2354,68 +2149,6 @@ public:
             mapping[anchor_q] = -1;
         }
         return stats.complete_matches;
-    }
-
-    void print_profile() const {
-        cout << "\n========== Algorithm 3 QSubspace Code-Bucket PivotFast ProgressiveFilter PSBM Profile ==========\n";
-        cout << "complete_matches           : " << stats.complete_matches << "\n";
-        cout << "recursive_calls            : " << stats.recursive_calls << "\n";
-        cout << "anchor_before_raf          : " << stats.anchor_candidates_before_filter << "\n";
-        cout << "anchor_after_raf           : " << stats.anchor_candidates << "\n";
-        cout << "anchor_pruned_by_raf       : " << stats.anchor_filter_pruned << "\n";
-        cout << "restrictive_neighbor       : " << stats.anchor_restrictive_query << "\n";
-        cout << "progressive_blocks         : " << stats.ivf_cells << "\n";
-        cout << "progressive_pair_tests     : " << stats.progressive_pair_tests << "\n";
-        cout << "progressive_blocks_scanned : " << stats.progressive_blocks_scanned << "\n";
-        cout << "progressive_early_rejects  : " << stats.progressive_early_rejects << "\n";
-        cout << "progressive_full_evals     : " << stats.progressive_full_evals << "\n";
-        cout << "semantic_candidates_total  : " << stats.semantic_candidates_total << "\n";
-        cout << "angular_cap_certified      : " << stats.angular_cap_certified << "\n";
-        cout << "angular_shells             : " << stats.angular_shells << "\n";
-        cout << "angular_shell_entries      : " << stats.angular_shell_entries << "\n";
-        cout << "angular_shell_nonempty     : " << stats.angular_shell_nonempty << "\n";
-        cout << "shell_edge_bucket_directed_edges: " << stats.shell_edge_bucket_directed_edges << "\n";
-        cout << "shell_edge_bucket_tests    : " << stats.shell_edge_bucket_tests << "\n";
-        cout << "shell_edge_bucket_entries  : " << stats.shell_edge_bucket_entries << "\n";
-        cout << "shell_edge_bucket_nonempty : " << stats.shell_edge_bucket_nonempty << "\n";
-        cout << "shell_edge_bucket_support_generated: " << stats.shell_edge_bucket_support_generated << "\n";
-        cout << "shell_edge_bucket_pair_hits: " << stats.shell_edge_bucket_pair_hits << "\n";
-        cout << "qscore_mask_vertices     : " << stats.qscore_mask_vertices << "\n";
-        cout << "maskpair_edge_scans            : " << stats.maskpair_edge_scans << "\n";
-        cout << "maskpair_edge_skips_untouched  : " << stats.maskpair_edge_skips_untouched << "\n";
-        cout << "maskpair_query_edge_hits       : " << stats.maskpair_query_edge_hits << "\n";
-        cout << "maskpair_support_generated     : " << stats.maskpair_support_generated << "\n";
-        cout << "qsubspace_rank             : " << stats.qsubspace_rank << "\n";
-        cout << "edge_range_directed_edges  : " << stats.edge_range_directed_edges << "\n";
-        cout << "edge_range_node_tests      : " << stats.edge_range_node_tests << "\n";
-        cout << "edge_range_node_prunes     : " << stats.edge_range_node_prunes << "\n";
-        cout << "edge_range_node_full_accepts: " << stats.edge_range_node_full_accepts << "\n";
-        cout << "edge_range_leaf_tests      : " << stats.edge_range_leaf_tests << "\n";
-        cout << "edge_range_support_generated: " << stats.edge_range_support_generated << "\n";
-        cout << "support_edges_total        : " << stats.support_edges_total << "\n";
-        cout << "ac_rounds                  : " << stats.ac_rounds << "\n";
-        cout << "ac_support_tests           : " << stats.ac_support_tests << "\n";
-        cout << "ac_vertices_removed        : " << stats.ac_vertices_removed << "\n";
-        cout << "active_candidates_total    : " << stats.active_candidates_total << "\n";
-        cout << "pivot_batch_calls          : " << stats.pivot_batch_calls << "\n";
-        cout << "terminal_batch_calls       : " << stats.terminal_batch_calls << "\n";
-        cout << "terminal_direct_emits      : " << stats.terminal_direct_emits << "\n";
-        cout << "support_domain_builds      : " << stats.support_domain_builds << "\n";
-        cout << "support_base_entries_scanned: " << stats.support_base_entries_scanned << "\n";
-        cout << "support_membership_tests   : " << stats.support_membership_tests << "\n";
-        cout << "compact_active_total       : " << stats.compact_active_total << "\n";
-        cout << "compact_bitset_edges       : " << stats.compact_bitset_edges << "\n";
-        cout << "compact_bitset_words       : " << stats.compact_bitset_words << "\n";
-        cout << "compact_domain_builds      : " << stats.compact_domain_builds << "\n";
-        cout << "compact_word_ands         : " << stats.compact_word_ands << "\n";
-        cout << "compact_bits_enumerated   : " << stats.compact_bits_enumerated << "\n";
-        cout << "active_local_rows          : " << stats.active_local_rows << "\n";
-        cout << "active_local_row_lookups   : " << stats.active_local_row_lookups << "\n";
-        cout << "active_local_empty_lookups : " << stats.active_local_empty_lookups << "\n";
-        cout << "domain_empty_prunes        : " << stats.domain_empty_prunes << "\n";
-        cout << "local_support_calls        : " << stats.local_support_calls << "\n";
-        cout << "local_support_removed      : " << stats.local_support_removed << "\n";
-        cout << "local_support_empty_prunes : " << stats.local_support_empty_prunes << "\n";
     }
 
 };
@@ -2564,10 +2297,8 @@ int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         const double t0 = now_sec();
-        print_memory("program start");
 
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize, true);
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt_mapping;
@@ -2594,11 +2325,9 @@ int main(int argc, char** argv) {
         }
 
         const double t1 = now_sec();
-        print_memory("after query preparation");
 
         AngularShellIVFBucketMatcher matcher(G, Q, args.tau, args.bmax, args.landmarks, args.anchor_pilot_size);
         const double t2 = now_sec();
-        print_memory("after matcher initialization");
 
         const string output_path = resolve_output_path(args.output);
         MatchWriter writer(output_path, Q.n, !args.count_only);
@@ -2608,10 +2337,8 @@ int main(int argc, char** argv) {
 
         uint64_t count = matcher.run(emit, args.max_matches);
         writer.flush();
-        matcher.print_profile();
 
         const double t3 = now_sec();
-        print_memory("after matching");
         (void)count;
 
         cout << "\n========== Runtime Summary ==========" << "\n";
