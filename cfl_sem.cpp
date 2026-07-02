@@ -67,10 +67,6 @@ static double peak_rss_mb() {
 #endif
 }
 
-static void print_memory(const string& tag) {
-    cout << "[Memory] " << tag << ": current RSS=" << current_rss_mb()
-         << " MB, peak RSS=" << peak_rss_mb() << " MB\n";
-}
 
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
@@ -258,25 +254,6 @@ static inline float dot_product(const vector<float>& a, const vector<float>& b) 
 
 struct Stats {
     uint64_t complete_matches = 0;
-    uint64_t recursive_calls = 0;
-    uint64_t candidate_extensions = 0;
-    uint64_t structural_prunes = 0;
-    uint64_t injectivity_prunes = 0;
-    uint64_t edge_checks = 0;
-    uint64_t semantic_similarity_evals = 0;
-    uint64_t semantic_partial_prunes = 0;
-    uint64_t initial_degree_domain_values = 0;
-    uint64_t after_topdown_domain_values = 0;
-    uint64_t after_bottomup_domain_values = 0;
-    uint64_t after_nte_domain_values = 0;
-    uint64_t topdown_deletions = 0;
-    uint64_t bottomup_deletions = 0;
-    uint64_t nte_deletions = 0;
-    uint64_t cpi_tree_edge_entries = 0;
-    uint64_t cpi_tree_edge_lists = 0;
-    uint64_t core_vertices = 0;
-    uint64_t forest_vertices = 0;
-    uint64_t leaf_vertices = 0;
 };
 
 class CFLMatchSemanticMat {
@@ -397,8 +374,6 @@ public:
             if (!has_noncore_child) is_leaf[u] = 1;
             else is_forest[u] = 1;
         }
-        stats.core_vertices = 0; stats.forest_vertices = 0; stats.leaf_vertices = 0;
-        for (int u=0; u<qn; ++u) { stats.core_vertices += is_core[u]; stats.forest_vertices += is_forest[u]; stats.leaf_vertices += is_leaf[u]; }
     }
 
     bool semantic_pass_for_domain(int u, int v) const {
@@ -414,7 +389,6 @@ public:
                 dom[u].push_back(v);
                 mark[midx(u,v)] = 1;
             }
-            stats.initial_degree_domain_values += dom[u].size();
         }
     }
 
@@ -450,11 +424,10 @@ public:
                 if (!mark[midx(u,v)]) continue;
                 bool has_parent_support = false;
                 for (int z:G.adj[v]) if (mark[midx(p,z)]) { has_parent_support = true; break; }
-                if (!has_parent_support) { remove_from_domain(u,v); stats.topdown_deletions++; }
+                if (!has_parent_support) remove_from_domain(u,v);
             }
             compact_domains();
         }
-        stats.after_topdown_domain_values = domain_values();
     }
 
     void cpi_bottom_up_refine() {
@@ -467,11 +440,10 @@ public:
                 for (int c:children[u]) {
                     if (!support_in_domain(u, v, c)) { ok = false; break; }
                 }
-                if (!ok) { remove_from_domain(u,v); stats.bottomup_deletions++; }
+                if (!ok) remove_from_domain(u,v);
             }
             compact_domains();
         }
-        stats.after_bottomup_domain_values = domain_values();
     }
 
     void cpi_non_tree_support_refine() {
@@ -485,17 +457,16 @@ public:
                     if (is_tree_edge_flat[qedge_idx(u,w)]) continue;
                     for (int v:dom[u]) {
                         if (!mark[midx(u,v)]) continue;
-                        if (!support_in_domain(u, v, w)) { remove_from_domain(u,v); stats.nte_deletions++; changed = true; }
+                        if (!support_in_domain(u, v, w)) { remove_from_domain(u,v); changed = true; }
                     }
                     for (int z:dom[w]) {
                         if (!mark[midx(w,z)]) continue;
-                        if (!support_in_domain(w, z, u)) { remove_from_domain(w,z); stats.nte_deletions++; changed = true; }
+                        if (!support_in_domain(w, z, u)) { remove_from_domain(w,z); changed = true; }
                     }
                     if (changed) compact_domains();
                 }
             }
         }
-        stats.after_nte_domain_values = domain_values();
     }
 
     void rebuild_positions() {
@@ -514,14 +485,12 @@ public:
         for (int u=0; u<qn; ++u) if (parent[u] >= 0) {
             int p = parent[u];
             cpi_child[u].assign(dom[p].size(), {});
-            stats.cpi_tree_edge_lists += dom[p].size();
             for (int pi=0; pi<(int)dom[p].size(); ++pi) {
                 int pv = dom[p][pi];
                 auto& list = cpi_child[u][pi];
                 for (int cv : G.adj[pv]) {
                     if (cv >= 0 && cv < n && mark[midx(u,cv)]) list.push_back(cv);
                 }
-                stats.cpi_tree_edge_entries += list.size();
             }
         }
     }
@@ -588,25 +557,21 @@ public:
     }
 
     bool structurally_feasible(int u, int v, const vector<int>& mapping, const vector<uint8_t>& used) {
-        stats.candidate_extensions++;
-        if (used[v]) { stats.injectivity_prunes++; return false; }
+        if (used[v]) return false;
         for (int w:Q.adj[u]) {
             int z = mapping[w];
             if (z < 0) continue;
-            stats.edge_checks++;
-            if (!G.has_edge(v,z)) { stats.structural_prunes++; return false; }
+            if (!G.has_edge(v,z)) return false;
         }
         return true;
     }
 
     bool semantic_pass(int u, int v) {
-        stats.semantic_similarity_evals++;
         return dot_product(Q.x[u], G.x[v]) >= tau;
     }
 
     template<class Emit>
     void dfs(int pos, vector<int>& mapping, vector<uint8_t>& used, Emit&& emit, uint64_t max_matches) {
-        stats.recursive_calls++;
         if (max_matches && stats.complete_matches >= max_matches) return;
         if (pos == qn) {
             stats.complete_matches++;
@@ -621,7 +586,7 @@ public:
             if (!structurally_feasible(u, v, mapping, used)) continue;
             // Semantic threshold has already been used in CPI/domain construction.
             // Keep this check only as a safety guard against implementation mistakes.
-            if (!semantic_pass(u, v)) { stats.semantic_partial_prunes++; continue; }
+            if (!semantic_pass(u, v)) continue;
             mapping[u] = v; used[v] = 1;
             dfs(pos+1, mapping, used, std::forward<Emit>(emit), max_matches);
             used[v] = 0; mapping[u] = -1;
@@ -637,33 +602,6 @@ public:
         return stats.complete_matches;
     }
 
-    void print_profile() const {
-        cout << "\n========== CFL-Match Semantic Materialized-CPI Profile ==========" << "\n";
-        cout << "complete_matches              : " << stats.complete_matches << "\n";
-        cout << "recursive_calls               : " << stats.recursive_calls << "\n";
-        cout << "candidate_extensions          : " << stats.candidate_extensions << "\n";
-        cout << "injectivity_prunes            : " << stats.injectivity_prunes << "\n";
-        cout << "structural_prunes             : " << stats.structural_prunes << "\n";
-        cout << "edge_checks                   : " << stats.edge_checks << "\n";
-        cout << "semantic_similarity_evals     : " << stats.semantic_similarity_evals << "\n";
-        cout << "semantic_partial_prunes       : " << stats.semantic_partial_prunes << "\n";
-        cout << "core_vertices                 : " << stats.core_vertices << "\n";
-        cout << "forest_vertices               : " << stats.forest_vertices << "\n";
-        cout << "leaf_vertices                 : " << stats.leaf_vertices << "\n";
-        cout << "root_query_vertex             : " << root << "\n";
-        cout << "initial_semantic_domain_values: " << stats.initial_degree_domain_values << "\n";
-        cout << "domain_values_after_topdown   : " << stats.after_topdown_domain_values << "\n";
-        cout << "domain_values_after_bottomup  : " << stats.after_bottomup_domain_values << "\n";
-        cout << "domain_values_after_nte       : " << stats.after_nte_domain_values << "\n";
-        cout << "topdown_deletions             : " << stats.topdown_deletions << "\n";
-        cout << "bottomup_deletions            : " << stats.bottomup_deletions << "\n";
-        cout << "non_tree_edge_deletions       : " << stats.nte_deletions << "\n";
-        cout << "cpi_tree_edge_lists           : " << stats.cpi_tree_edge_lists << "\n";
-        cout << "cpi_tree_edge_entries         : " << stats.cpi_tree_edge_entries << "\n";
-        cout << "matching_order                :";
-        for (int u:order) cout << ' ' << u;
-        cout << "\n";
-    }
 };
 
 class MatchWriter {
@@ -729,11 +667,9 @@ int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         double t0 = now_sec();
-        print_memory("program start");
         cout << "Loading graph CSV ...\n";
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize);
         cout << "Data graph: n=" << G.n << " dim=" << G.dim << "\n";
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt;
@@ -753,12 +689,10 @@ int main(int argc, char** argv) {
         }
         cout << "Query graph: n=" << Q.n << " dim=" << Q.dim << "\n";
         double t1 = now_sec();
-        print_memory("after query preparation");
 
         cout << "Initializing CFL-Match Semantic Materialized-CPI baseline ...\n";
         CFLMatchSemanticMat matcher(G, Q, args.tau);
         double t2 = now_sec();
-        print_memory("after CPI construction");
 
         MatchWriter writer(args.output, Q.n);
         auto emit = [&](const vector<int>& mapping){ writer.write(mapping); };
@@ -766,8 +700,6 @@ int main(int argc, char** argv) {
         uint64_t count = matcher.run(emit, args.max_matches);
         writer.flush();
         double t3 = now_sec();
-        print_memory("after matching");
-        matcher.print_profile();
         cout << "\nFound " << count << " match(es).\n";
         cout << "Matches written to: " << args.output << "\n";
         cout << "\n========== Runtime Summary ==========\n";
