@@ -69,11 +69,6 @@ static double peak_rss_mb() {
 #endif
 }
 
-static void print_memory(const string& tag) {
-    cout << "[Memory] " << tag << ": current RSS=" << current_rss_mb()
-         << " MB, peak RSS=" << peak_rss_mb() << " MB\n";
-}
-
 static vector<string> split_csv_line(const string& line) {
     vector<string> out;
     string cur;
@@ -498,10 +493,6 @@ public:
     int beam_width;
     bool soft_semantic;
 
-    uint64_t candidate_expansions = 0;
-    uint64_t generated_states = 0;
-    uint64_t exact_valid_count = 0;
-    uint64_t semantic_checks = 0;
 
     GFinderVec(const Graph& data, const Graph& query, float tau_, int hop_t_, int miss_edges_,
                uint64_t topk_, int beam_width_, bool soft_semantic_)
@@ -531,7 +522,6 @@ public:
                 best = u;
             }
         }
-        cout << "[G-FINDER Root] chosen q" << best << ", deg=" << Q.deg[best] << "\n";
         return best;
     }
 
@@ -617,7 +607,6 @@ public:
     };
 
     vector<CandInfo> build_candidates(int u, const PartialState& st) {
-        candidate_expansions++;
         std::unordered_map<int, int> best_dist;
         best_dist.reserve(256);
         bool has_parent = false;
@@ -642,7 +631,6 @@ public:
             int v = kv.first;
             if (used_contains(st.used, v)) continue;
             if (G.deg[v] < std::max(0, Q.deg[u] - miss_edges)) continue;
-            semantic_checks++;
             double sim = dot_product(Q.x[u], G.x[v]);
             if (!soft_semantic && sim < tau) continue;
             int me = 0, inter = 0, hard_connected = 0;
@@ -742,7 +730,6 @@ public:
                     ns.missing_edges += c.missing_edges;
                     ns.intermediate_vertices += c.intermediate_vertices;
                     next.push_back(std::move(ns));
-                    generated_states++;
                 }
             }
             std::sort(next.begin(), next.end(), [](const PartialState& a, const PartialState& b) {
@@ -765,7 +752,6 @@ public:
             r.intermediate_vertices = st.intermediate_vertices;
             for (int u = 0; u < Q.n; ++u) if (r.mapping[u] < 0) r.missing_nodes++;
             if (r.missing_nodes == 0) r.exact_valid = exact_valid(r.mapping);
-            if (r.exact_valid) exact_valid_count++;
             string key;
             for (int v : r.mapping) { key += std::to_string(v); key.push_back(','); }
             if (seen.insert(key).second) results.push_back(std::move(r));
@@ -777,29 +763,16 @@ public:
         return results;
     }
 
-    void print_profile() const {
-        cout << "\n========== G-FINDER-VEC Profile ==========" << "\n";
-        cout << "candidate_expansions      : " << candidate_expansions << "\n";
-        cout << "generated_states          : " << generated_states << "\n";
-        cout << "semantic_checks           : " << semantic_checks << "\n";
-        cout << "exact_valid_in_beam       : " << exact_valid_count << "\n";
-        cout << "hop_t                     : " << hop_t << "\n";
-        cout << "miss_edges                : " << miss_edges << "\n";
-        cout << "beam_width                : " << beam_width << "\n";
-        cout << "soft_semantic             : " << (soft_semantic ? 1 : 0) << "\n";
-    }
 };
 
 int main(int argc, char** argv) {
     try {
         Args args = parse_args(argc, argv);
         const double t0 = now_sec();
-        print_memory("program start");
 
         cout << "Loading graph CSV ...\n";
         Graph G = read_graph_csv(args.graph_vertices, args.graph_edges, !args.no_normalize, true);
         cout << "Data graph: n=" << G.n << " dim=" << G.dim << "\n";
-        print_memory("after graph load");
 
         Graph Q;
         vector<int> gt_mapping;
@@ -837,7 +810,6 @@ int main(int argc, char** argv) {
             }
         }
         const double t1 = now_sec();
-        print_memory("after query preparation");
 
         cout << "Running G-FINDER-VEC approximate baseline ...\n";
         GFinderVec finder(G, Q, args.tau, args.hop_t, args.miss_edges, args.topk,
@@ -865,8 +837,6 @@ int main(int argc, char** argv) {
         }
 
         const double t2 = now_sec();
-        print_memory("after matching");
-        finder.print_profile();
 
         uint64_t exact_topk = 0;
         for (const auto& r : results) if (r.exact_valid) exact_topk++;
